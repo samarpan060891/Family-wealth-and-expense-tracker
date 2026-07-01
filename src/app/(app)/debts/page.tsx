@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { RowAttachments } from "@/components/row-attachments";
+import { AmortizationModal } from "@/components/amortization-modal";
 import { DEBT_TYPES } from "@/lib/categories";
 
 type Debt = {
@@ -39,6 +40,7 @@ export default function DebtsPage() {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [amortizationDebtId, setAmortizationDebtId] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch("/api/debts").then((r) => r.json());
@@ -108,8 +110,16 @@ export default function DebtsPage() {
                     {i.endDate ? ` · Closes ${i.endDate}` : ""}
                     {i.emiAmount ? ` · EMI ${fmtCurrency(Number(i.emiAmount))}` : ""}
                   </div>
-                  <div className="mt-1.5">
+                  <div className="mt-1.5 flex items-center gap-3 flex-wrap">
                     <RowAttachments module="debt" recordId={i.id} label={i.name} />
+                    {i.emiAmount && i.interestRate && (
+                      <button
+                        onClick={() => setAmortizationDebtId(i.id)}
+                        className="text-xs text-blue hover:text-blue/80 transition-colors"
+                      >
+                        📊 Amortization
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
@@ -227,6 +237,8 @@ export default function DebtsPage() {
           </Button>
         </form>
       </Modal>
+
+      <AmortizationModal debtId={amortizationDebtId} onClose={() => setAmortizationDebtId(null)} />
     </div>
   );
 }

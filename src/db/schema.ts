@@ -39,6 +39,13 @@ export const frequencyEnum = pgEnum("frequency", [
   "half_yearly",
   "yearly",
 ]);
+export const relationEnum = pgEnum("relation_type", [
+  "self",
+  "spouse",
+  "child",
+  "parent",
+  "other",
+]);
 
 export const households = pgTable("households", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -203,6 +210,73 @@ export const attachments = pgTable("attachments", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+});
+
+// Household member profiles (self, spouse, kids...) used for age-based planning.
+// Distinct from `users` - a family profile need not have a login account.
+export const familyMembers = pgTable("family_members", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 120 }).notNull(),
+  dateOfBirth: date("date_of_birth").notNull(),
+  relation: relationEnum("relation").notNull().default("other"),
+  createdById: uuid("created_by_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// One row per household: country + inflation assumptions used for the 10-year projection.
+export const financialSettings = pgTable("financial_settings", {
+  householdId: uuid("household_id")
+    .primaryKey()
+    .references(() => households.id, { onDelete: "cascade" }),
+  country: varchar("country", { length: 60 }).notNull().default("India"),
+  currency: varchar("currency", { length: 10 }).notNull().default("INR"),
+  generalInflationRate: numeric("general_inflation_rate", { precision: 5, scale: 2 }).notNull().default("6.00"),
+  lifestyleUpgradeRate: numeric("lifestyle_upgrade_rate", { precision: 5, scale: 2 }).notNull().default("2.00"),
+  educationInflationRate: numeric("education_inflation_rate", { precision: 5, scale: 2 }).notNull().default("8.00"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const educationPlans = pgTable("education_plans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  familyMemberId: uuid("family_member_id")
+    .notNull()
+    .references(() => familyMembers.id, { onDelete: "cascade" }),
+  courseName: varchar("course_name", { length: 150 }).notNull(),
+  country: varchar("country", { length: 60 }).notNull(),
+  startAge: numeric("start_age", { precision: 4, scale: 1 }).notNull().default("18"),
+  durationYears: numeric("duration_years", { precision: 4, scale: 1 }).notNull().default("4"),
+  currentAnnualCost: numeric("current_annual_cost", { precision: 14, scale: 2 }).notNull(),
+  notes: text("notes"),
+  createdById: uuid("created_by_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const marriageBudgets = pgTable("marriage_budgets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  familyMemberId: uuid("family_member_id")
+    .notNull()
+    .references(() => familyMembers.id, { onDelete: "cascade" }),
+  included: boolean("included").notNull().default(true),
+  targetAge: numeric("target_age", { precision: 4, scale: 1 }).notNull().default("26"),
+  currentBudget: numeric("current_budget", { precision: 14, scale: 2 }).notNull(),
+  notes: text("notes"),
+  createdById: uuid("created_by_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const householdsRelations = relations(households, ({ many }) => ({
