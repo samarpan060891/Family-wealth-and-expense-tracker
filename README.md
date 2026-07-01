@@ -61,6 +61,32 @@ connection string, then run `npm run db:migrate` again before starting the
 app. Also set `AUTH_SECRET` to a long random string in any shared/production
 environment.
 
+## Deploying on Railway
+
+The app is already set up so `npm start` runs pending migrations before
+booting, and `next start` binds to Railway's `PORT` automatically — no extra
+config files needed.
+
+1. Push this repo to GitHub (Railway deploys from a Git repo).
+2. In Railway: **New Project → Deploy from GitHub repo** and pick this repo/branch.
+3. **Add a Postgres database**: in the same project, click **New → Database →
+   Add PostgreSQL**. Railway provisions it and exposes a `DATABASE_URL`
+   reference variable.
+4. On your web service, open **Variables** and add:
+   - `DATABASE_URL` → reference the Postgres plugin's `DATABASE_URL` (Railway
+     lets you pick "Add Reference" to the Postgres service instead of typing
+     it by hand).
+   - `AUTH_SECRET` → a long random string, e.g. generate one locally with
+     `openssl rand -base64 32`.
+5. Deploy. Railway runs `npm install`, `npm run build`, then `npm start`
+   (which applies migrations, then starts the server) automatically.
+6. Once it's live, open the generated `*.up.railway.app` URL — you'll land on
+   `/register` to create your household, same as running it locally.
+
+No Dockerfile is required (Railway's Nixpacks builder detects the Next.js
+app from `package.json`), but you can add one later if you want more control
+over the build image.
+
 ## Project structure
 
 - `src/db/schema.ts` — Drizzle schema (households, users, share_permissions,
