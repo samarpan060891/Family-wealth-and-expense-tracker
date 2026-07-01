@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
+import { users, households } from "@/db/schema";
 import { NavShell } from "@/components/nav-shell";
 
 export default async function AppLayout({
@@ -16,9 +16,10 @@ export default async function AppLayout({
   const db = await getDb();
   const [user] = await db.select().from(users).where(eq(users.id, session.userId));
   if (!user) redirect("/login");
+  const [household] = await db.select().from(households).where(eq(households.id, session.householdId));
 
   return (
-    <NavShell userName={user.name} isAdmin={user.role === "admin"}>
+    <NavShell userName={user.name} householdName={household?.name} isAdmin={user.role === "admin"}>
       {children}
     </NavShell>
   );

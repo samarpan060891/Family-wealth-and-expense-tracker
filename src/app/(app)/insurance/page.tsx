@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Button, Card, EmptyState, Modal, fmtCurrency } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { AttachmentUploader } from "@/components/attachment-uploader";
 import { INSURANCE_TYPES, FREQUENCIES } from "@/lib/categories";
 
@@ -72,45 +72,42 @@ export default function InsurancePage() {
   const totalCover = items.reduce((s, i) => s + Number(i.sumAssured ?? 0), 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Insurance</h1>
-        <Button onClick={() => setOpen(true)}>+ Add</Button>
-      </div>
+    <div className="flex flex-col gap-5 stagger">
+      <PageHeader title="Insurance" sub={`${items.length} policies`} action={<Button onClick={() => setOpen(true)}>+ Add</Button>} />
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <div className="text-xs text-muted mb-1">Total Sum Assured</div>
-          <div className="text-lg font-bold text-accent">{fmtCurrency(totalCover)}</div>
-        </Card>
-        <Card>
-          <div className="text-xs text-muted mb-1">Total Premiums</div>
-          <div className="text-lg font-bold">{fmtCurrency(totalPremium)}</div>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 lg:gap-4">
+        <StatCard label="Total Sum Assured" value={fmtCurrency(totalCover)} tone="accent" icon="◉" />
+        <StatCard label="Total Premiums / yr-equiv" value={fmtCurrency(totalPremium)} tone="purple" icon="◐" />
       </div>
 
       <Card>
         {items.length === 0 ? (
-          <EmptyState title="No policies recorded" sub="Track life, health, vehicle and home insurance with expiry alerts" />
+          <EmptyState icon="◉" title="No policies recorded" sub="Track life, health, vehicle and home insurance with expiry alerts" />
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col divide-y divide-border-soft">
             {items.map((i) => {
               const days = daysUntil(i.expiryDate);
               const urgent = days <= 30;
               return (
-                <div key={i.id} className="flex justify-between items-start border-b border-border/50 pb-2">
-                  <div>
+                <div key={i.id} className="flex justify-between items-start py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
                     <div className="font-semibold text-sm">{i.name}</div>
-                    <div className="text-xs text-muted">
+                    <div className="text-xs text-muted mt-0.5">
                       {i.type} {i.provider ? `· ${i.provider}` : ""}
                     </div>
-                    <div className={`text-xs mt-0.5 ${urgent ? "text-red font-semibold" : "text-muted"}`}>
-                      Expires {i.expiryDate} ({days >= 0 ? `${days} days left` : "expired"})
+                    <div className="mt-1.5">
+                      {urgent ? (
+                        <Badge tone="red">Expires {i.expiryDate} · {days >= 0 ? `${days}d left` : "expired"}</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-soft">
+                          Expires {i.expiryDate} ({days}d left)
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="font-mono text-sm">{fmtCurrency(Number(i.premiumAmount))}</div>
-                    <button onClick={() => onDelete(i.id)} className="text-xs text-muted hover:text-red">
+                  <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
+                    <div className="font-mono text-sm font-semibold">{fmtCurrency(Number(i.premiumAmount))}</div>
+                    <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                       Delete
                     </button>
                   </div>

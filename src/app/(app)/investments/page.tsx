@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Button, Card, EmptyState, Modal, fmtCurrency } from "@/components/ui";
+import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { AttachmentUploader } from "@/components/attachment-uploader";
 import { INVESTMENT_TYPES } from "@/lib/categories";
 
@@ -62,43 +62,43 @@ export default function InvestmentsPage() {
   const totalInvested = items.reduce((s, i) => s + Number(i.investedAmount), 0);
   const totalCurrent = items.reduce((s, i) => s + Number(i.currentValue ?? i.investedAmount), 0);
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Investments</h1>
-        <Button onClick={() => setOpen(true)}>+ Add</Button>
-      </div>
+  const gain = totalCurrent - totalInvested;
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <div className="text-xs text-muted mb-1">Total Invested</div>
-          <div className="text-lg font-bold">{fmtCurrency(totalInvested)}</div>
-        </Card>
-        <Card>
-          <div className="text-xs text-muted mb-1">Current Value</div>
-          <div className="text-lg font-bold text-green">{fmtCurrency(totalCurrent)}</div>
-        </Card>
+  return (
+    <div className="flex flex-col gap-5 stagger">
+      <PageHeader title="Investments" sub={`${items.length} holdings`} action={<Button onClick={() => setOpen(true)}>+ Add</Button>} />
+
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
+        <StatCard label="Total Invested" value={fmtCurrency(totalInvested)} tone="accent" icon="◈" />
+        <StatCard label="Current Value" value={fmtCurrency(totalCurrent)} tone="green" icon="◆" />
+        <StatCard
+          label="Unrealized Gain"
+          value={`${gain >= 0 ? "+" : ""}${fmtCurrency(gain)}`}
+          tone={gain >= 0 ? "green" : "red"}
+          icon={gain >= 0 ? "▴" : "▾"}
+          className="col-span-2 lg:col-span-1"
+        />
       </div>
 
       <Card>
         {items.length === 0 ? (
-          <EmptyState title="No investments yet" sub="Add mutual funds, stocks, FDs, PPF, gold and more" />
+          <EmptyState icon="◈" title="No investments yet" sub="Add mutual funds, stocks, FDs, PPF, gold and more" />
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col divide-y divide-border-soft">
             {items.map((i) => (
-              <div key={i.id} className="flex justify-between items-start border-b border-border/50 pb-2">
-                <div>
+              <div key={i.id} className="flex justify-between items-start py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0">
                   <div className="font-semibold text-sm">{i.name}</div>
-                  <div className="text-xs text-muted">
+                  <div className="text-xs text-muted mt-0.5">
                     {i.type} · Since {i.purchaseDate}
                     {i.maturityDate ? ` · Matures ${i.maturityDate}` : ""}
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="font-mono text-sm">
+                <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
+                  <div className="font-mono text-sm font-semibold text-green">
                     {fmtCurrency(Number(i.currentValue ?? i.investedAmount))}
                   </div>
-                  <button onClick={() => onDelete(i.id)} className="text-xs text-muted hover:text-red">
+                  <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                     Delete
                   </button>
                 </div>

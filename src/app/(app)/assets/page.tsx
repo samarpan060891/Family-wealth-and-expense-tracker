@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Button, Card, EmptyState, Modal, fmtCurrency } from "@/components/ui";
+import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { AttachmentUploader } from "@/components/attachment-uploader";
 import { ASSET_TYPES } from "@/lib/categories";
 
@@ -56,34 +56,28 @@ export default function AssetsPage() {
   const total = items.reduce((s, i) => s + Number(i.value), 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Assets</h1>
-        <Button onClick={() => setOpen(true)}>+ Add</Button>
-      </div>
+    <div className="flex flex-col gap-5 stagger">
+      <PageHeader title="Assets" sub={`${items.length} tracked`} action={<Button onClick={() => setOpen(true)}>+ Add</Button>} />
 
-      <Card>
-        <div className="text-xs text-muted mb-1">Total Asset Value</div>
-        <div className="text-lg font-bold text-accent">{fmtCurrency(total)}</div>
-      </Card>
+      <StatCard label="Total Asset Value" value={fmtCurrency(total)} tone="accent" icon="▣" />
 
       <Card>
         {items.length === 0 ? (
-          <EmptyState title="No assets recorded" sub="Track property, vehicles, gold and more" />
+          <EmptyState icon="▣" title="No assets recorded" sub="Track property, vehicles, gold and more" />
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col divide-y divide-border-soft">
             {items.map((i) => (
-              <div key={i.id} className="flex justify-between items-start border-b border-border/50 pb-2">
-                <div>
+              <div key={i.id} className="flex justify-between items-start py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0">
                   <div className="font-semibold text-sm">{i.name}</div>
-                  <div className="text-xs text-muted">
+                  <div className="text-xs text-muted mt-0.5">
                     {i.type}
                     {i.purchaseDate ? ` · Bought ${i.purchaseDate}` : ""}
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="font-mono text-sm">{fmtCurrency(Number(i.value))}</div>
-                  <button onClick={() => onDelete(i.id)} className="text-xs text-muted hover:text-red">
+                <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
+                  <div className="font-mono text-sm font-semibold text-accent">{fmtCurrency(Number(i.value))}</div>
+                  <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                     Delete
                   </button>
                 </div>

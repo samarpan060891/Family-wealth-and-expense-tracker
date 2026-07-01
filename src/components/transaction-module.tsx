@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Button, Card, EmptyState, Modal, fmtCurrency } from "@/components/ui";
+import { Button, Card, EmptyState, Modal, PageHeader, fmtCurrency } from "@/components/ui";
 import { PAYMENT_METHODS, FREQUENCIES } from "@/lib/categories";
 import { AttachmentUploader } from "@/components/attachment-uploader";
 
@@ -75,19 +75,23 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const total = filtered.reduce((s, i) => s + Number(i.amount), 0);
 
   const label = type === "expense" ? "Expense" : "Income";
+  const tone = type === "expense" ? "text-red" : "text-green";
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">{label}</h1>
-        <Button onClick={() => setOpen(true)}>+ Add {label}</Button>
-      </div>
+    <div className="flex flex-col gap-5 stagger">
+      <PageHeader
+        title={label}
+        sub={`${filtered.length} ${filtered.length === 1 ? "entry" : "entries"}`}
+        action={<Button onClick={() => setOpen(true)}>+ Add {label}</Button>}
+      />
 
       <Card>
         <div className="flex items-center justify-between mb-2">
-          <div className="text-xs text-muted">Total {monthFilter ? "(selected month)" : "(all time)"}</div>
+          <div className="text-[11px] font-mono uppercase tracking-wider text-muted">
+            Total {monthFilter ? "· selected month" : "· all time"}
+          </div>
           <select
-            className="!w-auto text-xs py-1"
+            className="!w-auto text-xs py-1.5"
             value={monthFilter}
             onChange={(e) => setMonthFilter(e.target.value)}
           >
@@ -99,29 +103,31 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
             ))}
           </select>
         </div>
-        <div className={`text-2xl font-bold ${type === "expense" ? "text-red" : "text-green"}`}>
-          {fmtCurrency(total)}
-        </div>
+        <div className={`text-3xl font-bold font-mono ${tone}`}>{fmtCurrency(total)}</div>
       </Card>
 
       <Card>
         {filtered.length === 0 ? (
-          <EmptyState title={`No ${label.toLowerCase()} entries`} sub="Add your first entry above" />
+          <EmptyState
+            icon={type === "expense" ? "▾" : "▴"}
+            title={`No ${label.toLowerCase()} entries`}
+            sub="Add your first entry above"
+          />
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col divide-y divide-border-soft">
             {filtered.map((tx) => (
-              <div key={tx.id} className="flex justify-between items-start border-b border-border/50 pb-2">
-                <div>
+              <div key={tx.id} className="flex justify-between items-start py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0">
                   <div className="font-semibold text-sm">{tx.categoryName ?? "Uncategorized"}</div>
-                  <div className="text-xs text-muted">
+                  <div className="text-xs text-muted mt-0.5">
                     {tx.date} · {PAYMENT_METHODS.find((p) => p.value === tx.paymentMethod)?.label}
                     {tx.isRecurring ? ` · Recurring (${tx.recurrenceFrequency})` : ""}
                   </div>
-                  {tx.note && <div className="text-xs text-muted mt-0.5">{tx.note}</div>}
+                  {tx.note && <div className="text-xs text-muted-soft mt-0.5 truncate">{tx.note}</div>}
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="font-mono text-sm">{fmtCurrency(Number(tx.amount))}</div>
-                  <button onClick={() => onDelete(tx.id)} className="text-xs text-muted hover:text-red">
+                <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
+                  <div className={`font-mono text-sm font-semibold ${tone}`}>{fmtCurrency(Number(tx.amount))}</div>
+                  <button onClick={() => onDelete(tx.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                     Delete
                   </button>
                 </div>

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Button, Card, EmptyState, Modal } from "@/components/ui";
+import { Button, Card, EmptyState, Modal, PageHeader } from "@/components/ui";
 import {
   DEFAULT_CATEGORIES,
   INVESTMENT_TYPES,
@@ -97,39 +97,46 @@ export default function FamilyPage() {
     load();
   }
 
+  const nonAdminMembers = members.filter((m) => m.role !== "admin");
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Family Sharing</h1>
-        <Button onClick={() => setInviteOpen(true)}>+ Add Member</Button>
-      </div>
+    <div className="flex flex-col gap-5 stagger">
+      <PageHeader
+        title="Family"
+        accent="Sharing"
+        sub={`${nonAdminMembers.length} member${nonAdminMembers.length === 1 ? "" : "s"}`}
+        action={<Button onClick={() => setInviteOpen(true)}>+ Add Member</Button>}
+      />
 
       <Card>
-        {members.filter((m) => m.role !== "admin").length === 0 ? (
-          <EmptyState title="No family members yet" sub="Add a member and choose what they can see" />
+        {nonAdminMembers.length === 0 ? (
+          <EmptyState icon="◐" title="No family members yet" sub="Add a member and choose what they can see" />
         ) : (
-          <div className="flex flex-col gap-2">
-            {members
-              .filter((m) => m.role !== "admin")
-              .map((m) => (
-                <div key={m.id} className="flex justify-between items-center border-b border-border/50 pb-2">
-                  <div>
-                    <div className="font-semibold text-sm">{m.name}</div>
-                    <div className="text-xs text-muted">{m.email}</div>
+          <div className="flex flex-col divide-y divide-border-soft">
+            {nonAdminMembers.map((m) => (
+              <div key={m.id} className="flex justify-between items-center py-3 first:pt-0 last:pb-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-surface3 border border-border flex items-center justify-center text-xs font-bold text-accent shrink-0">
+                    {m.name.slice(0, 2).toUpperCase()}
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openPermissions(m)}
-                      className="text-xs font-semibold text-accent border border-accent rounded-lg px-2 py-1"
-                    >
-                      Permissions
-                    </button>
-                    <button onClick={() => onRemove(m.id)} className="text-xs text-muted hover:text-red px-1">
-                      Remove
-                    </button>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm truncate">{m.name}</div>
+                    <div className="text-xs text-muted truncate">{m.email}</div>
                   </div>
                 </div>
-              ))}
+                <div className="flex gap-2 shrink-0 pl-3">
+                  <button
+                    onClick={() => openPermissions(m)}
+                    className="text-xs font-semibold text-accent border border-accent/50 hover:bg-accent-glow rounded-lg px-2.5 py-1.5 transition-colors"
+                  >
+                    Permissions
+                  </button>
+                  <button onClick={() => onRemove(m.id)} className="text-xs text-muted-soft hover:text-red px-1 transition-colors">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Card>

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Button, Card, EmptyState, Modal, fmtCurrency } from "@/components/ui";
+import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { AttachmentUploader } from "@/components/attachment-uploader";
 import { DEBT_TYPES } from "@/lib/categories";
 
@@ -66,41 +66,32 @@ export default function DebtsPage() {
   const totalEmi = items.reduce((s, i) => s + Number(i.emiAmount ?? 0), 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Debts / Loans</h1>
-        <Button onClick={() => setOpen(true)}>+ Add</Button>
-      </div>
+    <div className="flex flex-col gap-5 stagger">
+      <PageHeader title="Debts / Loans" sub={`${items.length} accounts`} action={<Button onClick={() => setOpen(true)}>+ Add</Button>} />
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <div className="text-xs text-muted mb-1">Total Outstanding</div>
-          <div className="text-lg font-bold text-red">{fmtCurrency(totalOutstanding)}</div>
-        </Card>
-        <Card>
-          <div className="text-xs text-muted mb-1">Monthly EMI</div>
-          <div className="text-lg font-bold">{fmtCurrency(totalEmi)}</div>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 lg:gap-4">
+        <StatCard label="Total Outstanding" value={fmtCurrency(totalOutstanding)} tone="red" icon="◇" />
+        <StatCard label="Monthly EMI" value={fmtCurrency(totalEmi)} tone="blue" icon="▾" />
       </div>
 
       <Card>
         {items.length === 0 ? (
-          <EmptyState title="No debts recorded" sub="Track loans, credit cards, EMIs and payoff dates" />
+          <EmptyState icon="◇" title="No debts recorded" sub="Track loans, credit cards, EMIs and payoff dates" />
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col divide-y divide-border-soft">
             {items.map((i) => (
-              <div key={i.id} className="flex justify-between items-start border-b border-border/50 pb-2">
-                <div>
+              <div key={i.id} className="flex justify-between items-start py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0">
                   <div className="font-semibold text-sm">{i.name}</div>
-                  <div className="text-xs text-muted">
+                  <div className="text-xs text-muted mt-0.5">
                     {i.type} {i.lender ? `· ${i.lender}` : ""}
                     {i.endDate ? ` · Closes ${i.endDate}` : ""}
                     {i.emiAmount ? ` · EMI ${fmtCurrency(Number(i.emiAmount))}` : ""}
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="font-mono text-sm">{fmtCurrency(Number(i.outstandingAmount))}</div>
-                  <button onClick={() => onDelete(i.id)} className="text-xs text-muted hover:text-red">
+                <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
+                  <div className="font-mono text-sm font-semibold text-red">{fmtCurrency(Number(i.outstandingAmount))}</div>
+                  <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                     Delete
                   </button>
                 </div>

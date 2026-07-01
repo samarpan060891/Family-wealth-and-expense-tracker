@@ -36,14 +36,14 @@ export default function RegisterPage() {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-5 py-10 min-h-screen">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-2xl font-bold text-accent">FamilyWealth</div>
-          <div className="text-muted text-sm mt-1">
+      <div className="w-full max-w-sm animate-fade-up">
+        <div className="text-center mb-9">
+          <div className="font-display text-3xl font-semibold text-accent italic">FamilyWealth</div>
+          <div className="text-muted text-sm mt-2">
             Create your household as the main account holder
           </div>
         </div>
-        <Card>
+        <Card className="shadow-2xl shadow-black/30">
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
             <div>
               <label>Household Name</label>
@@ -83,15 +83,17 @@ export default function RegisterPage() {
                 placeholder="At least 8 characters"
               />
             </div>
-            {error && <div className="text-red text-sm">{error}</div>}
+            {error && (
+              <div className="text-red text-sm bg-red/10 border border-red/20 rounded-lg px-3 py-2">{error}</div>
+            )}
             <Button type="submit" disabled={loading} className="w-full mt-1">
               {loading ? "Creating..." : "Create Household"}
             </Button>
           </form>
         </Card>
-        <div className="text-center text-sm text-muted mt-5">
+        <div className="text-center text-sm text-muted mt-6">
           Already have an account?{" "}
-          <Link href="/login" className="text-accent font-semibold">
+          <Link href="/login" className="text-accent font-semibold hover:text-accent-soft transition-colors">
             Sign in
           </Link>
         </div>
