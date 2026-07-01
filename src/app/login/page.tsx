@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Card, PasswordInput } from "@/components/ui";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-5 py-10 min-h-screen relative overflow-hidden">
+      <ThemeToggle className="absolute top-5 right-5" />
       <div className="w-full max-w-sm animate-fade-up relative">
         <div className="text-center mb-9">
           <div className="font-display text-3xl font-semibold text-accent italic">FamilyWealth</div>

@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
-import { AttachmentUploader } from "@/components/attachment-uploader";
+import { uploadAttachment } from "@/components/attachment-uploader";
+import { RowAttachments } from "@/components/row-attachments";
 import { DEBT_TYPES } from "@/lib/categories";
 
 type Debt = {
@@ -17,23 +18,27 @@ type Debt = {
   endDate: string | null;
 };
 
+const EMPTY_FORM = {
+  name: "",
+  lender: "",
+  type: DEBT_TYPES[0],
+  principal: "",
+  outstandingAmount: "",
+  interestRate: "",
+  emiAmount: "",
+  startDate: new Date().toISOString().slice(0, 10),
+  endDate: "",
+  notes: "",
+};
+
 export default function DebtsPage() {
   const [items, setItems] = useState<Debt[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
-  const [createdId, setCreatedId] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    name: "",
-    lender: "",
-    type: DEBT_TYPES[0],
-    principal: "",
-    outstandingAmount: "",
-    interestRate: "",
-    emiAmount: "",
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: "",
-    notes: "",
-  });
+  const [saving, setSaving] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
 
   async function load() {
     const res = await fetch("/api/debts").then((r) => r.json());
@@ -43,18 +48,33 @@ export default function DebtsPage() {
     load();
   }, []);
 
+  function resetForm() {
+    setForm(EMPTY_FORM);
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const res = await fetch("/api/debts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    if (!res.ok) return setError(data.error ?? "Failed to save");
-    setCreatedId(data.debt.id);
-    load();
+    setSaving(true);
+    try {
+      const res = await fetch("/api/debts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) return setError(data.error ?? "Failed to save");
+      if (file) await uploadAttachment("debt", data.debt.id, file);
+      setOpen(false);
+      resetForm();
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function onDelete(id: string) {
@@ -88,6 +108,9 @@ export default function DebtsPage() {
                     {i.endDate ? ` · Closes ${i.endDate}` : ""}
                     {i.emiAmount ? ` · EMI ${fmtCurrency(Number(i.emiAmount))}` : ""}
                   </div>
+                  <div className="mt-1.5">
+                    <RowAttachments module="debt" recordId={i.id} label={i.name} />
+                  </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
                   <div className="font-mono text-sm font-semibold text-red">{fmtCurrency(Number(i.outstandingAmount))}</div>
@@ -105,99 +128,104 @@ export default function DebtsPage() {
         open={open}
         onClose={() => {
           setOpen(false);
-          setCreatedId(null);
+          resetForm();
         }}
-        title={createdId ? "Add attachment" : "Add Debt"}
+        title="Add Debt"
       >
-        {createdId ? (
-          <div className="flex flex-col gap-3">
-            <div className="text-sm text-green">Saved. Optionally attach a loan statement.</div>
-            <AttachmentUploader module="debt" recordId={createdId} />
-            <Button onClick={() => { setOpen(false); setCreatedId(null); }} className="w-full">
-              Done
-            </Button>
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <div>
+            <label>Name</label>
+            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
-        ) : (
-          <form onSubmit={onSubmit} className="flex flex-col gap-3">
-            <div>
-              <label>Name</label>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div>
-              <label>Type</label>
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                {DEBT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label>Lender</label>
-              <input value={form.lender} onChange={(e) => setForm({ ...form, lender: e.target.value })} />
-            </div>
-            <div>
-              <label>Principal Amount</label>
+          <div>
+            <label>Type</label>
+            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+              {DEBT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Lender</label>
+            <input value={form.lender} onChange={(e) => setForm({ ...form, lender: e.target.value })} />
+          </div>
+          <div>
+            <label>Principal Amount</label>
+            <input
+              type="number"
+              required
+              min="0"
+              value={form.principal}
+              onChange={(e) => setForm({ ...form, principal: e.target.value })}
+            />
+          </div>
+          <div>
+            <label>Outstanding Amount</label>
+            <input
+              type="number"
+              required
+              min="0"
+              value={form.outstandingAmount}
+              onChange={(e) => setForm({ ...form, outstandingAmount: e.target.value })}
+            />
+          </div>
+          <div>
+            <label>Interest Rate % (optional)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={form.interestRate}
+              onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
+            />
+          </div>
+          <div>
+            <label>EMI Amount (optional)</label>
+            <input
+              type="number"
+              min="0"
+              value={form.emiAmount}
+              onChange={(e) => setForm({ ...form, emiAmount: e.target.value })}
+            />
+          </div>
+          <div>
+            <label>Start Date</label>
+            <input
+              type="date"
+              required
+              value={form.startDate}
+              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            />
+          </div>
+          <div>
+            <label>Expected Payoff / End Date (optional)</label>
+            <input
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            />
+          </div>
+          <div>
+            <label>Loan Statement (optional)</label>
+            <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
+              <span>📎</span>
+              <span className="truncate">{file ? file.name : "Upload a statement (photo, PDF or Excel)"}</span>
               <input
-                type="number"
-                required
-                min="0"
-                value={form.principal}
-                onChange={(e) => setForm({ ...form, principal: e.target.value })}
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf,.xls,.xlsx,.csv"
+                capture="environment"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="hidden"
               />
-            </div>
-            <div>
-              <label>Outstanding Amount</label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={form.outstandingAmount}
-                onChange={(e) => setForm({ ...form, outstandingAmount: e.target.value })}
-              />
-            </div>
-            <div>
-              <label>Interest Rate % (optional)</label>
-              <input
-                type="number"
-                step="0.1"
-                value={form.interestRate}
-                onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
-              />
-            </div>
-            <div>
-              <label>EMI Amount (optional)</label>
-              <input
-                type="number"
-                min="0"
-                value={form.emiAmount}
-                onChange={(e) => setForm({ ...form, emiAmount: e.target.value })}
-              />
-            </div>
-            <div>
-              <label>Start Date</label>
-              <input
-                type="date"
-                required
-                value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              />
-            </div>
-            <div>
-              <label>Expected Payoff / End Date (optional)</label>
-              <input
-                type="date"
-                value={form.endDate}
-                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-              />
-            </div>
-            {error && <div className="text-red text-sm">{error}</div>}
-            <Button type="submit" className="w-full">
-              Save
-            </Button>
-          </form>
-        )}
+            </label>
+          </div>
+          {error && <div className="text-red text-sm">{error}</div>}
+          <Button type="submit" className="w-full" disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </form>
       </Modal>
     </div>
   );

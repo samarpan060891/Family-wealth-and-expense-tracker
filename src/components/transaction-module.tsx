@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, fmtCurrency } from "@/components/ui";
 import { PAYMENT_METHODS, FREQUENCIES } from "@/lib/categories";
-import { AttachmentUploader } from "@/components/attachment-uploader";
+import { uploadAttachment } from "@/components/attachment-uploader";
+import { RowAttachments } from "@/components/row-attachments";
 
 type Category = { id: string; name: string };
 type Tx = {
@@ -22,8 +23,10 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [monthFilter, setMonthFilter] = useState("");
-  const [lastCreatedId, setLastCreatedId] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     categoryId: "",
     amount: "",
@@ -47,22 +50,46 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     load();
   }, [type]);
 
+  function resetForm() {
+    setForm({
+      categoryId: "",
+      amount: "",
+      date: new Date().toISOString().slice(0, 10),
+      paymentMethod: "cash",
+      note: "",
+      isRecurring: false,
+      recurrenceFrequency: "one_time",
+    });
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const res = await fetch("/api/transactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, ...form }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Failed to save");
-      return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, ...form }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Failed to save");
+        return;
+      }
+      if (file) {
+        await uploadAttachment(type, data.transaction.id, file);
+      }
+      setOpen(false);
+      resetForm();
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
     }
-    setLastCreatedId(data.transaction.id);
-    setForm({ ...form, amount: "", note: "" });
-    load();
   }
 
   async function onDelete(id: string) {
@@ -124,6 +151,9 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
                     {tx.isRecurring ? ` · Recurring (${tx.recurrenceFrequency})` : ""}
                   </div>
                   {tx.note && <div className="text-xs text-muted-soft mt-0.5 truncate">{tx.note}</div>}
+                  <div className="mt-1.5">
+                    <RowAttachments module={type} recordId={tx.id} label={tx.categoryName ?? label} />
+                  </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
                   <div className={`font-mono text-sm font-semibold ${tone}`}>{fmtCurrency(Number(tx.amount))}</div>
@@ -141,25 +171,10 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
         open={open}
         onClose={() => {
           setOpen(false);
-          setLastCreatedId(null);
+          resetForm();
         }}
-        title={lastCreatedId ? "Add attachment" : `Add ${label}`}
+        title={`Add ${label}`}
       >
-        {lastCreatedId ? (
-          <div className="flex flex-col gap-3">
-            <div className="text-sm text-green">{label} saved. Optionally attach proof below.</div>
-            <AttachmentUploader module={type} recordId={lastCreatedId} />
-            <Button
-              onClick={() => {
-                setOpen(false);
-                setLastCreatedId(null);
-              }}
-              className="w-full"
-            >
-              Done
-            </Button>
-          </div>
-        ) : (
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <div>
             <label>Category</label>
@@ -244,12 +259,26 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
               placeholder="Optional description"
             />
           </div>
+          <div>
+            <label>Bill / Receipt (optional)</label>
+            <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
+              <span>📎</span>
+              <span className="truncate">{file ? file.name : "Capture a photo or upload PDF / Excel"}</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf,.xls,.xlsx,.csv"
+                capture="environment"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+            </label>
+          </div>
           {error && <div className="text-red text-sm">{error}</div>}
-          <Button type="submit" className="w-full">
-            Save
+          <Button type="submit" className="w-full" disabled={saving}>
+            {saving ? "Saving…" : "Save"}
           </Button>
         </form>
-        )}
       </Modal>
     </div>
   );

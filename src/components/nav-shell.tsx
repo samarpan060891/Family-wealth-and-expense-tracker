@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV = [
   { href: "/dashboard", label: "Overview", icon: "◆" },
@@ -53,11 +54,14 @@ export function NavShell({
     <div className="min-h-screen flex">
       {/* DESKTOP SIDEBAR */}
       <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r border-border-soft bg-bg-elevated sticky top-0 h-screen">
-        <div className="px-6 py-6 border-b border-border-soft">
-          <div className="font-display text-xl font-semibold text-accent italic">FamilyWealth</div>
-          <div className="text-[11px] font-mono text-muted-soft tracking-wide mt-0.5">
-            {householdName ?? "Household"}
+        <div className="px-6 py-6 border-b border-border-soft flex items-start justify-between gap-2">
+          <div>
+            <div className="font-display text-xl font-semibold text-accent italic">FamilyWealth</div>
+            <div className="text-[11px] font-mono text-muted-soft tracking-wide mt-0.5">
+              {householdName ?? "Household"}
+            </div>
           </div>
+          <ThemeToggle className="shrink-0" />
         </div>
         <nav className="flex-1 px-3 py-5 flex flex-col gap-0.5">
           {NAV.map((item) => {
@@ -124,6 +128,7 @@ export function NavShell({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {isAdmin && (
               <Link
                 href="/family"

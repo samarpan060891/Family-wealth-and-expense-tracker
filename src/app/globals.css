@@ -23,6 +23,31 @@
   --font-display: "Fraunces", ui-serif, Georgia, serif;
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --bg: #f7f5ef;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface2: #f1efe6;
+  --surface3: #e8e4d6;
+  --border: #ded8c8;
+  --border-soft: #e9e4d6;
+  --accent: #c17d0f;
+  --accent-soft: #dd9a2c;
+  --accent2: #9c6409;
+  --accent-glow: rgba(193, 125, 15, 0.12);
+  --text: #201f1a;
+  --muted: #6c6a5f;
+  --muted-soft: #9c9a8c;
+  --red: #c94640;
+  --green: #1f8f5a;
+  --blue: #3161c9;
+  --purple: #7654bd;
+
+  color-scheme: light;
 }
 
 @theme inline {
@@ -76,6 +101,13 @@ body::before {
     radial-gradient(ellipse 55% 40% at 15% 0%, rgba(232, 163, 61, 0.07), transparent 60%),
     radial-gradient(ellipse 45% 45% at 100% 30%, rgba(111, 161, 245, 0.05), transparent 60%),
     radial-gradient(ellipse 40% 35% at 20% 100%, rgba(169, 136, 232, 0.04), transparent 60%);
+}
+
+html[data-theme="light"] body::before {
+  background:
+    radial-gradient(ellipse 55% 40% at 15% 0%, rgba(193, 125, 15, 0.05), transparent 60%),
+    radial-gradient(ellipse 45% 45% at 100% 30%, rgba(49, 97, 201, 0.035), transparent 60%),
+    radial-gradient(ellipse 40% 35% at 20% 100%, rgba(118, 84, 189, 0.03), transparent 60%);
 }
 
 h1,

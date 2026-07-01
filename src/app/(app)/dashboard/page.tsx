@@ -24,14 +24,15 @@ type Dashboard = {
 
 const chartTooltip = {
   contentStyle: {
-    background: "#191b23",
-    border: "1px solid #262835",
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
     borderRadius: 10,
     fontSize: 12,
     fontFamily: "var(--font-mono)",
   },
-  labelStyle: { color: "#8a8da3" },
+  labelStyle: { color: "var(--muted)" },
 };
+const axisTick = { fill: "var(--muted)", fontSize: 10 };
 
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -134,10 +135,10 @@ export default function DashboardPage() {
             <div className="h-60 -ml-4">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.monthlyTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#262835" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fill: "#8a8da3", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#8a8da3", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip {...chartTooltip} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="month" tick={axisTick} axisLine={false} tickLine={false} />
+                  <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+                  <Tooltip {...chartTooltip} cursor={{ fill: "var(--surface3)", opacity: 0.4 }} />
                   <Bar dataKey="income" fill="#4fd189" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="expense" fill="#ef6a63" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -157,10 +158,10 @@ export default function DashboardPage() {
         <div className="h-64 -ml-4">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data.cashflowProjection}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#262835" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#8a8da3", fontSize: 9 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#8a8da3", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip {...chartTooltip} cursor={{ stroke: "#262835" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="month" tick={{ ...axisTick, fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+              <Tooltip {...chartTooltip} cursor={{ stroke: "var(--border)" }} />
               <Line type="monotone" dataKey="cumulative" stroke="#e8a33d" strokeWidth={2.5} dot={false} />
               <Line type="monotone" dataKey="net" stroke="#6fa1f5" strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
             </LineChart>
