@@ -31,7 +31,10 @@ export const DEFAULT_CATEGORIES: Record<string, string[]> = {
 export const INVESTMENT_TYPES = [
   "Mutual Fund",
   "Stocks",
+  "ETF",
   "Fixed Deposit",
+  "Recurring Deposit",
+  "FCNR Deposit",
   "PPF",
   "EPF",
   "NPS",
