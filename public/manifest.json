@@ -1,0 +1,13 @@
+{
+  "name": "FamilyWealth Tracker",
+  "short_name": "FamilyWealth",
+  "description": "Family expense, investment, debt, asset & insurance tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0c0f",
+  "theme_color": "#0b0c0f",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
