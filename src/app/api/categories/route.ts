@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { categories } from "@/db/schema";
 import { getSession } from "@/lib/auth";
+import { getEditableCategoryFilter } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -16,7 +17,18 @@ export async function GET(req: NextRequest) {
     : eq(categories.householdId, session.householdId);
 
   const rows = await db.select().from(categories).where(where);
-  return NextResponse.json({ categories: rows });
+
+  // Non-admins adding an expense/income entry should only be offered categories they can
+  // actually save into - otherwise they can pick one, submit, and get a confusing 403.
+  if (session.role === "admin" || !moduleParam || (moduleParam !== "expense" && moduleParam !== "income")) {
+    return NextResponse.json({ categories: rows });
+  }
+
+  const filter = await getEditableCategoryFilter(session, moduleParam);
+  const visible =
+    filter === "none" ? [] : filter === "all" ? rows : rows.filter((r) => filter.categories.includes(r.name));
+
+  return NextResponse.json({ categories: visible });
 }
 
 const schema = z.object({

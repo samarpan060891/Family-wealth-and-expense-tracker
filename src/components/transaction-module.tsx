@@ -175,6 +175,12 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
         }}
         title={`Add ${label}`}
       >
+        {categories.length === 0 ? (
+          <div className="text-sm text-muted-soft">
+            You don&apos;t have permission to add {label.toLowerCase()} entries in any category. Ask the main
+            account holder to grant you edit access under Family Sharing.
+          </div>
+        ) : (
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <div>
             <label>Category</label>
@@ -279,6 +285,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
             {saving ? "Saving…" : "Save"}
           </Button>
         </form>
+        )}
       </Modal>
     </div>
   );
