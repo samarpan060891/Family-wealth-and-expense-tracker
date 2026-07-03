@@ -124,7 +124,8 @@ export default function ReportsPage() {
           {monthTx.length === 0 ? (
             <div className="text-sm text-muted-soft">No transactions this month.</div>
           ) : (
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[22rem]">
               <thead>
                 <tr className="text-muted text-left">
                   <th className="py-1 font-medium">Date</th>
@@ -146,6 +147,7 @@ export default function ReportsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

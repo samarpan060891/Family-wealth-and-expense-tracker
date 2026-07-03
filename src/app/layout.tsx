@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/toast";
+import { PwaRegister } from "@/components/pwa-register";
 
 const display = Fraunces({
   variable: "--font-display",
@@ -26,18 +27,29 @@ export const metadata: Metadata = {
   title: "FamilyWealth",
   description: "Family expense, investment, debt, asset & insurance tracker",
   manifest: "/manifest.json",
+  applicationName: "FamilyWealth",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "FamilyWealth",
   },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#08090c",
+  viewportFit: "cover",
+  themeColor: "#0b0c0f",
 };
 
 export default function RootLayout({
@@ -58,6 +70,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
+        <PwaRegister />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

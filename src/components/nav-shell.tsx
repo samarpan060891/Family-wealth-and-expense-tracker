@@ -158,7 +158,7 @@ export function NavShell({
 
       <div className="flex-1 flex flex-col min-w-0 pb-20 lg:pb-0">
         {/* MOBILE HEADER */}
-        <header className="lg:hidden sticky top-0 z-40 bg-bg-elevated/90 backdrop-blur-md border-b border-border-soft px-4 py-3 flex items-center justify-between">
+        <header className="lg:hidden sticky top-0 z-40 bg-bg-elevated/90 backdrop-blur-md border-b border-border-soft px-4 py-3 flex items-center justify-between pt-[max(0.75rem,env(safe-area-inset-top))]">
           <div>
             <div className="font-display font-semibold text-accent italic text-lg leading-none">FamilyWealth</div>
             <Link href="/account" className="text-[11px] text-muted-soft mt-1 block">
