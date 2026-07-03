@@ -201,6 +201,27 @@ label {
   display: none;
 }
 
+/* Print: show only the report sheet so "Save as PDF" produces a clean page. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .report-sheet,
+  .report-sheet * {
+    visibility: visible;
+  }
+  .report-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    color: #000;
+  }
+  @page {
+    margin: 16mm;
+  }
+}
+
 @keyframes fadeUp {
   from {
     opacity: 0;

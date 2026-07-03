@@ -29,6 +29,7 @@ const MOBILE_MORE = [
   { href: "/assets", label: "Assets", icon: "▣" },
   { href: "/insurance", label: "Insurance", icon: "◉" },
   { href: "/goals", label: "Goals", icon: "◎" },
+  { href: "/reports", label: "Reports", icon: "▤" },
 ];
 
 const MOBILE_MORE_ADMIN = [
@@ -100,6 +101,17 @@ export function NavShell({
               </Link>
             );
           })}
+          <Link
+            href="/reports"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              pathname === "/reports" ? "bg-accent-glow text-accent" : "text-muted hover:text-text hover:bg-surface2"
+            }`}
+          >
+            <span className={`text-xs w-4 text-center ${pathname === "/reports" ? "text-accent" : "text-muted-soft"}`}>
+              ▤
+            </span>
+            Reports
+          </Link>
           {isAdmin && (
             <>
               <div className="h-px bg-border-soft my-3 mx-3" />

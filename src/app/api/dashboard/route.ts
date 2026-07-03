@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { transactions, categories, debts, insurances, investments, assets } from "@/db/schema";
+import { transactions, categories, debts, insurances, investments, assets, netWorthSnapshots } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { getCategoryFilter } from "@/lib/permissions";
 import { buildCashflowProjection, upcomingExpiries } from "@/lib/cashflow";
@@ -22,6 +22,8 @@ export async function GET() {
         date: transactions.date,
         isRecurring: transactions.isRecurring,
         recurrenceFrequency: transactions.recurrenceFrequency,
+        paymentMethod: transactions.paymentMethod,
+        note: transactions.note,
         categoryName: categories.name,
       })
       .from(transactions)
@@ -32,6 +34,11 @@ export async function GET() {
     db.select().from(investments).where(eq(investments.householdId, session.householdId)),
     db.select().from(assets).where(eq(assets.householdId, session.householdId)),
   ]);
+
+  const snapRows = await db
+    .select()
+    .from(netWorthSnapshots)
+    .where(eq(netWorthSnapshots.householdId, session.householdId));
 
   let visibleTx = txRows;
   let visibleDebts = debtRows;
@@ -87,6 +94,37 @@ export async function GET() {
     visibleAssets.reduce((s, a) => s + Number(a.value), 0) -
     visibleDebts.reduce((s, d) => s + Number(d.outstandingAmount), 0);
 
+  // Net worth trend from recorded daily snapshots. Fall back to a single point at
+  // today's value so a brand-new household still shows a sensible chart.
+  const netWorthTrend = snapRows
+    .map((s) => ({ date: s.date, netWorth: Number(s.netWorth) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const todayIso = format(new Date(), "yyyy-MM-dd");
+  if (!netWorthTrend.some((p) => p.date === todayIso)) {
+    netWorthTrend.push({ date: todayIso, netWorth });
+  }
+
+  // This month's savings rate = (income − expense) / income.
+  const thisMonthIncome = visibleTx
+    .filter((t) => t.type === "income" && t.date.startsWith(currentMonthKey))
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const thisMonthExpense = Object.values(categoryBreakdown).reduce((s, v) => s + v, 0);
+  const savingsRate = thisMonthIncome > 0 ? (thisMonthIncome - thisMonthExpense) / thisMonthIncome : null;
+
+  // Recent transactions (most recent 100) for the searchable list and pie drill-down.
+  const recentTransactions = [...visibleTx]
+    .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1))
+    .slice(0, 100)
+    .map((t) => ({
+      id: t.id,
+      type: t.type as "income" | "expense",
+      amount: Number(t.amount),
+      date: t.date,
+      category: t.categoryName ?? "Uncategorized",
+      paymentMethod: t.paymentMethod,
+      note: t.note,
+    }));
+
   const cashflowProjection = buildCashflowProjection(
     visibleTx.map((t) => ({
       type: t.type as "income" | "expense",
@@ -127,11 +165,15 @@ export async function GET() {
       .slice(-12),
     categoryBreakdown: Object.entries(categoryBreakdown).map(([name, amount]) => ({ name, amount })),
     netWorth,
+    netWorthTrend,
+    savingsRate,
+    thisMonthIncome,
+    recentTransactions,
     totals: {
       investments: visibleInvestments.reduce((s, i) => s + Number(i.currentValue ?? i.investedAmount), 0),
       assets: visibleAssets.reduce((s, a) => s + Number(a.value), 0),
       debts: visibleDebts.reduce((s, d) => s + Number(d.outstandingAmount), 0),
-      thisMonthExpense: Object.values(categoryBreakdown).reduce((s, v) => s + v, 0),
+      thisMonthExpense,
     },
     cashflowProjection,
     upcomingExpiries: [...expiringInsurances, ...maturingInvestments, ...endingDebts].sort((a, b) =>
