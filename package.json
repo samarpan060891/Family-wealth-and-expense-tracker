@@ -11,6 +11,7 @@
     "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@electric-sql/pglite": "^0.5.3",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",

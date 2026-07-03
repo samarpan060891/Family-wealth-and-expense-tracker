@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { uploadAttachment } from "@/components/attachment-uploader";
+import { useDocumentScan } from "@/components/use-document-scan";
 import { RowAttachments } from "@/components/row-attachments";
+import { cleanAmount, cleanDate } from "@/lib/extract-fields";
 import { ASSET_TYPES } from "@/lib/categories";
 
 type Asset = {
@@ -27,9 +29,18 @@ export default function AssetsPage() {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const matchType = (t: string | null | undefined) =>
+    (t && ASSET_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
+  const { file, scanning, scanNote, fileInputRef, onFilePicked, reset } = useDocumentScan("asset", (f) =>
+    setForm((prev) => ({
+      ...prev,
+      name: f.name || prev.name,
+      type: matchType(f.type) || prev.type,
+      value: cleanAmount(f.value) || prev.value,
+      purchaseDate: cleanDate(f.purchaseDate) || prev.purchaseDate,
+    }))
+  );
 
   async function load() {
     const res = await fetch("/api/assets").then((r) => r.json());
@@ -41,8 +52,7 @@ export default function AssetsPage() {
 
   function resetForm() {
     setForm(EMPTY_FORM);
-    setFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    reset();
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -156,19 +166,22 @@ export default function AssetsPage() {
             <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
           <div>
-            <label>Ownership Proof / Valuation (optional)</label>
+            <label>Ownership Proof / Valuation — auto-fills the form (optional)</label>
             <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
-              <span>📎</span>
-              <span className="truncate">{file ? file.name : "Upload a document (photo, PDF or Excel)"}</span>
+              <span>{scanning ? "⏳" : "📎"}</span>
+              <span className="truncate">
+                {scanning ? "Reading document…" : file ? file.name : "Upload a document (photo or PDF)"}
+              </span>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*,.pdf,.xls,.xlsx,.csv"
                 capture="environment"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
                 className="hidden"
               />
             </label>
+            {scanNote && <div className="text-xs text-accent mt-1.5">{scanNote}</div>}
           </div>
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>

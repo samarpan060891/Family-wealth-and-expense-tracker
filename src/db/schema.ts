@@ -191,6 +191,11 @@ export const insurances = pgTable("insurances", {
   expiryDate: date("expiry_date").notNull(),
   sumAssured: numeric("sum_assured", { precision: 14, scale: 2 }),
   nominee: varchar("nominee", { length: 120 }),
+  // Emergency contacts so family can reach the insurer quickly during a claim
+  claimHelpline: varchar("claim_helpline", { length: 60 }),
+  insurerHelpline: varchar("insurer_helpline", { length: 60 }),
+  agentName: varchar("agent_name", { length: 120 }),
+  agentPhone: varchar("agent_phone", { length: 60 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

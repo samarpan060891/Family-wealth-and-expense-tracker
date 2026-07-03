@@ -13,6 +13,29 @@ export async function fileToBase64(file: File) {
   });
 }
 
+export type ExtractResponse = {
+  configured: boolean;
+  fields: Record<string, string | null>;
+  message?: string;
+  error?: string;
+};
+
+/** Sends a picked document to the server to auto-detect field values. Images and PDFs only. */
+export async function scanDocument(module: Module, file: File): Promise<ExtractResponse> {
+  const type = file.type || "application/octet-stream";
+  if (!type.startsWith("image/") && type !== "application/pdf") {
+    return { configured: true, fields: {} };
+  }
+  const base64 = await fileToBase64(file);
+  const res = await fetch("/api/extract", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ module, fileType: type, fileData: base64 }),
+  });
+  const data = (await res.json()) as ExtractResponse;
+  return data;
+}
+
 export async function uploadAttachment(module: Module, recordId: string, file: File) {
   const base64 = await fileToBase64(file);
   const res = await fetch("/api/attachments", {

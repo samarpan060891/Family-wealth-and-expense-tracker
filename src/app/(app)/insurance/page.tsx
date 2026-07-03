@@ -1,9 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { uploadAttachment } from "@/components/attachment-uploader";
+import { useDocumentScan } from "@/components/use-document-scan";
 import { RowAttachments } from "@/components/row-attachments";
+import { cleanAmount, cleanDate } from "@/lib/extract-fields";
 import { INSURANCE_TYPES, FREQUENCIES } from "@/lib/categories";
+import { helplinesForCountry } from "@/lib/helplines";
 
 type Insurance = {
   id: string;
@@ -17,10 +20,18 @@ type Insurance = {
   expiryDate: string;
   sumAssured: string | null;
   nominee: string | null;
+  claimHelpline: string | null;
+  insurerHelpline: string | null;
+  agentName: string | null;
+  agentPhone: string | null;
 };
 
 function daysUntil(dateStr: string) {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+}
+
+function telHref(num: string) {
+  return `tel:${num.replace(/[^0-9+]/g, "")}`;
 }
 
 const EMPTY_FORM = {
@@ -34,21 +45,48 @@ const EMPTY_FORM = {
   expiryDate: "",
   sumAssured: "",
   nominee: "",
+  claimHelpline: "",
+  insurerHelpline: "",
+  agentName: "",
+  agentPhone: "",
   notes: "",
 };
 
 export default function InsurancePage() {
   const [items, setItems] = useState<Insurance[]>([]);
+  const [country, setCountry] = useState("India");
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const matchType = (t: string | null | undefined) =>
+    (t && INSURANCE_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
+  const { file, scanning, scanNote, fileInputRef, onFilePicked, reset } = useDocumentScan("insurance", (f) =>
+    setForm((prev) => ({
+      ...prev,
+      name: f.name || prev.name,
+      type: matchType(f.type) || prev.type,
+      provider: f.provider || prev.provider,
+      policyNumber: f.policyNumber || prev.policyNumber,
+      premiumAmount: cleanAmount(f.premiumAmount) || prev.premiumAmount,
+      startDate: cleanDate(f.startDate) || prev.startDate,
+      expiryDate: cleanDate(f.expiryDate) || prev.expiryDate,
+      sumAssured: cleanAmount(f.sumAssured) || prev.sumAssured,
+      nominee: f.nominee || prev.nominee,
+      claimHelpline: f.claimHelpline || prev.claimHelpline,
+      insurerHelpline: f.insurerHelpline || prev.insurerHelpline,
+      agentName: f.agentName || prev.agentName,
+      agentPhone: f.agentPhone || prev.agentPhone,
+    }))
+  );
 
   async function load() {
-    const res = await fetch("/api/insurances").then((r) => r.json());
-    setItems(res.insurances ?? []);
+    const [insRes, setRes] = await Promise.all([
+      fetch("/api/insurances").then((r) => r.json()),
+      fetch("/api/settings").then((r) => r.json()),
+    ]);
+    setItems(insRes.insurances ?? []);
+    if (setRes.settings?.country) setCountry(setRes.settings.country);
   }
   useEffect(() => {
     load();
@@ -56,8 +94,7 @@ export default function InsurancePage() {
 
   function resetForm() {
     setForm(EMPTY_FORM);
-    setFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    reset();
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -90,6 +127,10 @@ export default function InsurancePage() {
 
   const totalPremium = items.reduce((s, i) => s + Number(i.premiumAmount), 0);
   const totalCover = items.reduce((s, i) => s + Number(i.sumAssured ?? 0), 0);
+  const withContacts = items.filter(
+    (i) => i.claimHelpline || i.insurerHelpline || i.agentPhone
+  );
+  const nationalHelplines = helplinesForCountry(country);
 
   return (
     <div className="flex flex-col gap-5 stagger">
@@ -99,6 +140,64 @@ export default function InsurancePage() {
         <StatCard label="Total Sum Assured" value={fmtCurrency(totalCover)} tone="accent" icon="◉" />
         <StatCard label="Total Premiums / yr-equiv" value={fmtCurrency(totalPremium)} tone="purple" icon="◐" />
       </div>
+
+      {/* EMERGENCY CONTACTS & HELPLINES */}
+      <Card className="border-red/25 bg-gradient-to-br from-red/[0.05] to-transparent">
+        <div className="flex items-center gap-2 text-sm font-bold mb-1 text-red">
+          <span>🆘</span> Emergency Contacts &amp; Helplines
+        </div>
+        <div className="text-xs text-muted-soft mb-3">
+          Tap any number to call. Keep this handy so family can reach the insurer quickly during a claim.
+        </div>
+
+        {withContacts.length > 0 && (
+          <div className="flex flex-col gap-2 mb-3">
+            {withContacts.map((i) => (
+              <div key={i.id} className="bg-surface2/60 border border-border-soft rounded-xl px-3.5 py-2.5">
+                <div className="font-semibold text-sm">
+                  {i.name} <span className="text-muted-soft font-normal">· {i.provider ?? i.type}</span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs">
+                  {i.claimHelpline && (
+                    <a href={telHref(i.claimHelpline)} className="text-accent font-semibold">
+                      📞 Claims: {i.claimHelpline}
+                    </a>
+                  )}
+                  {i.insurerHelpline && (
+                    <a href={telHref(i.insurerHelpline)} className="text-accent font-semibold">
+                      ☎ Care: {i.insurerHelpline}
+                    </a>
+                  )}
+                  {i.agentPhone && (
+                    <a href={telHref(i.agentPhone)} className="text-accent font-semibold">
+                      👤 {i.agentName || "Agent"}: {i.agentPhone}
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="text-[11px] font-mono uppercase tracking-wide text-muted mb-2">
+          National Helplines · {country}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {nationalHelplines.map((h) => (
+            <a
+              key={h.label}
+              href={telHref(h.number)}
+              className="text-xs bg-surface2 border border-border-soft rounded-lg px-2.5 py-1.5 hover:border-accent/50 transition-colors"
+            >
+              <span className="text-muted">{h.label}</span>{" "}
+              <span className="text-accent font-semibold">{h.number}</span>
+            </a>
+          ))}
+        </div>
+        <div className="text-[11px] text-muted-soft mt-2">
+          National numbers are a general reference — verify them and always use each policy&apos;s own claim number first.
+        </div>
+      </Card>
 
       <Card>
         {items.length === 0 ? (
@@ -122,6 +221,11 @@ export default function InsurancePage() {
                         <span className="text-xs text-muted-soft">
                           Expires {i.expiryDate} ({days}d left)
                         </span>
+                      )}
+                      {i.claimHelpline && (
+                        <a href={telHref(i.claimHelpline)} className="text-xs text-accent hover:text-accent-soft">
+                          📞 {i.claimHelpline}
+                        </a>
                       )}
                       <RowAttachments module="insurance" recordId={i.id} label={i.name} />
                     </div>
@@ -148,6 +252,24 @@ export default function InsurancePage() {
         title="Add Insurance Policy"
       >
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <div>
+            <label>Policy Copy — auto-fills the form (optional)</label>
+            <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
+              <span>{scanning ? "⏳" : "📎"}</span>
+              <span className="truncate">
+                {scanning ? "Reading document…" : file ? file.name : "Upload the policy document (photo or PDF)"}
+              </span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf,.xls,.xlsx,.csv"
+                capture="environment"
+                onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+            </label>
+            {scanNote && <div className="text-xs text-accent mt-1.5">{scanNote}</div>}
+          </div>
           <div>
             <label>Policy Name</label>
             <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -224,21 +346,46 @@ export default function InsurancePage() {
             <label>Nominee</label>
             <input value={form.nominee} onChange={(e) => setForm({ ...form, nominee: e.target.value })} />
           </div>
-          <div>
-            <label>Policy Copy (optional)</label>
-            <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
-              <span>📎</span>
-              <span className="truncate">{file ? file.name : "Upload the policy document (photo, PDF or Excel)"}</span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.pdf,.xls,.xlsx,.csv"
-                capture="environment"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                className="hidden"
-              />
-            </label>
+
+          <div className="border-t border-border-soft pt-3 mt-1">
+            <div className="text-[11px] font-mono uppercase tracking-wide text-muted mb-2">
+              Emergency Contacts (so family can reach the insurer)
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label>Claims / Emergency Helpline</label>
+                <input
+                  type="tel"
+                  value={form.claimHelpline}
+                  onChange={(e) => setForm({ ...form, claimHelpline: e.target.value })}
+                  placeholder="e.g. 1800-xxx-xxxx"
+                />
+              </div>
+              <div>
+                <label>Customer Care Number</label>
+                <input
+                  type="tel"
+                  value={form.insurerHelpline}
+                  onChange={(e) => setForm({ ...form, insurerHelpline: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label>Agent Name</label>
+                  <input value={form.agentName} onChange={(e) => setForm({ ...form, agentName: e.target.value })} />
+                </div>
+                <div>
+                  <label>Agent Phone</label>
+                  <input
+                    type="tel"
+                    value={form.agentPhone}
+                    onChange={(e) => setForm({ ...form, agentPhone: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
+
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>
             {saving ? "Saving…" : "Save"}

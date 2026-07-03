@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, fmtCurrency } from "@/components/ui";
 import { PAYMENT_METHODS, FREQUENCIES } from "@/lib/categories";
-import { uploadAttachment } from "@/components/attachment-uploader";
+import { uploadAttachment, scanDocument } from "@/components/attachment-uploader";
 import { RowAttachments } from "@/components/row-attachments";
+import { cleanAmount } from "@/lib/extract-fields";
 
 type Category = { id: string; name: string };
 type Tx = {
@@ -26,6 +27,8 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [saving, setSaving] = useState(false);
   const [monthFilter, setMonthFilter] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     categoryId: "",
@@ -61,7 +64,40 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       recurrenceFrequency: "one_time",
     });
     setFile(null);
+    setScanNote("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function onFilePicked(picked: File | null) {
+    setFile(picked);
+    setScanNote("");
+    if (!picked) return;
+    setScanning(true);
+    try {
+      const res = await scanDocument(type, picked);
+      if (res.configured === false) {
+        setScanNote("Attached. (Auto-detect is off — set ANTHROPIC_API_KEY to read documents.)");
+        return;
+      }
+      const f = res.fields ?? {};
+      const matchedCat = f.categoryName
+        ? categories.find((c) => c.name.toLowerCase() === String(f.categoryName).toLowerCase())
+        : undefined;
+      setForm((prev) => ({
+        ...prev,
+        amount: cleanAmount(f.amount) || prev.amount,
+        date: f.date || prev.date,
+        categoryId: matchedCat?.id || prev.categoryId,
+        paymentMethod: f.paymentMethod || prev.paymentMethod,
+        note: f.note || prev.note,
+      }));
+      const got = Object.values(f).filter(Boolean).length;
+      setScanNote(got ? "Scanned the document and pre-filled what we could — please review." : "Couldn't read details from this file — please fill them in.");
+    } catch {
+      setScanNote("Couldn't scan this file — you can still fill it in manually.");
+    } finally {
+      setScanning(false);
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -266,19 +302,22 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
             />
           </div>
           <div>
-            <label>Bill / Receipt (optional)</label>
+            <label>Bill / Receipt — auto-fills the form (optional)</label>
             <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
-              <span>📎</span>
-              <span className="truncate">{file ? file.name : "Capture a photo or upload PDF / Excel"}</span>
+              <span>{scanning ? "⏳" : "📎"}</span>
+              <span className="truncate">
+                {scanning ? "Reading document…" : file ? file.name : "Capture a photo or upload a bill (PDF / image)"}
+              </span>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*,.pdf,.xls,.xlsx,.csv"
                 capture="environment"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
                 className="hidden"
               />
             </label>
+            {scanNote && <div className="text-xs text-accent mt-1.5">{scanNote}</div>}
           </div>
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>

@@ -27,8 +27,17 @@ per-family-member sharing controls.
 - **Attachments** — capture a photo, or upload a PDF/Excel file, against any
   expense, investment, debt, asset or insurance record (bills, statements,
   policy copies). Stored in the database as base64; no external storage
-  required. (Automatic OCR/auto-categorization is not wired up yet — see
-  "Next steps".)
+  required.
+- **Auto-fill from documents** — when you attach an image or PDF in an add
+  form, it's read by Claude (vision) and the relevant fields (amount, date,
+  category, policy number, premium, helplines, etc.) are pre-filled for you
+  to review. Requires `ANTHROPIC_API_KEY`; without it, uploads still attach
+  normally, just without auto-detection. The model is configurable via
+  `EXTRACTION_MODEL` (defaults to `claude-opus-4-8`).
+- **Insurance emergency contacts & helplines** — each policy stores its
+  claim/customer-care/agent numbers, surfaced on the Insurance page as
+  tap-to-call links alongside national emergency helplines for the
+  household's country, so family can reach the insurer quickly during a claim.
 - **Mobile-first** — dark, portrait-optimized layout with a bottom tab bar,
   installable as a PWA (`manifest.json`).
 

@@ -39,6 +39,10 @@ const schema = z.object({
   expiryDate: z.string(),
   sumAssured: z.coerce.number().optional(),
   nominee: z.string().optional(),
+  claimHelpline: z.string().optional(),
+  insurerHelpline: z.string().optional(),
+  agentName: z.string().optional(),
+  agentPhone: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -69,6 +73,10 @@ export async function POST(req: NextRequest) {
       expiryDate: parsed.data.expiryDate,
       sumAssured: parsed.data.sumAssured?.toString(),
       nominee: parsed.data.nominee,
+      claimHelpline: parsed.data.claimHelpline,
+      insurerHelpline: parsed.data.insurerHelpline,
+      agentName: parsed.data.agentName,
+      agentPhone: parsed.data.agentPhone,
       notes: parsed.data.notes,
     })
     .returning();

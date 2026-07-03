@@ -1,0 +1,50 @@
+"use client";
+import { useRef, useState } from "react";
+import { scanDocument } from "@/components/attachment-uploader";
+
+type Module = "expense" | "income" | "investment" | "debt" | "asset" | "insurance";
+
+/**
+ * Shared "pick a document → auto-fill the form" behavior for the module add-forms.
+ * The caller supplies `apply`, which maps the extracted fields onto its own form state.
+ */
+export function useDocumentScan(module: Module, apply: (fields: Record<string, string | null>) => void) {
+  const [file, setFile] = useState<File | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function reset() {
+    setFile(null);
+    setScanNote("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function onFilePicked(picked: File | null) {
+    setFile(picked);
+    setScanNote("");
+    if (!picked) return;
+    setScanning(true);
+    try {
+      const res = await scanDocument(module, picked);
+      if (res.configured === false) {
+        setScanNote("Attached. (Auto-detect is off — set ANTHROPIC_API_KEY to read documents.)");
+        return;
+      }
+      const fields = res.fields ?? {};
+      apply(fields);
+      const got = Object.values(fields).filter(Boolean).length;
+      setScanNote(
+        got
+          ? "Scanned the document and pre-filled what we could — please review."
+          : "Couldn't read details from this file — please fill them in."
+      );
+    } catch {
+      setScanNote("Couldn't scan this file — you can still fill it in manually.");
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  return { file, setFile, scanning, scanNote, fileInputRef, onFilePicked, reset };
+}
