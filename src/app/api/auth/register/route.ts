@@ -1,27 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { getDb } from "@/db";
 import { households, users, categories } from "@/db/schema";
 import { hashPassword, createSessionCookie } from "@/lib/auth";
 import { DEFAULT_CATEGORIES } from "@/lib/categories";
-
-const schema = z.object({
-  householdName: z.string().min(1).max(120),
-  name: z.string().min(1).max(120),
-  email: z.string().email(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-});
+import { registerSchema } from "@/lib/validation";
+import { apiError, safeRoute, zodMessage } from "@/lib/api";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Invalid input" },
-      { status: 400 }
-    );
+  return safeRoute(async () => {
+  const ip = clientIp(req);
+  const limit = rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+  if (!limit.allowed) {
+    return apiError("Too many sign-up attempts. Please try again later.", 429, {
+      retryAfter: limit.retryAfterSeconds,
+    });
   }
+
+  const parsed = registerSchema.safeParse(await req.json());
+  if (!parsed.success) return apiError(zodMessage(parsed.error), 400);
   const { householdName, name, email, password } = parsed.data;
 
   const db = await getDb();
@@ -30,10 +28,7 @@ export async function POST(req: NextRequest) {
     .from(users)
     .where(eq(users.email, email.toLowerCase()));
   if (existing.length > 0) {
-    return NextResponse.json(
-      { error: "An account with this email already exists" },
-      { status: 409 }
-    );
+    return apiError("An account with this email already exists.", 409);
   }
 
   const [household] = await db
@@ -71,7 +66,8 @@ export async function POST(req: NextRequest) {
     role: "admin",
   });
 
-  return NextResponse.json({
+  return Response.json({
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
+  });
   });
 }

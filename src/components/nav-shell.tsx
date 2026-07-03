@@ -112,10 +112,10 @@ export function NavShell({
             <div className="w-8 h-8 rounded-full bg-surface3 border border-border flex items-center justify-center text-xs font-bold text-accent shrink-0">
               {initials}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold truncate">{userName}</div>
-              <div className="text-[11px] text-muted-soft">{isAdmin ? "Main account" : "Member"}</div>
-            </div>
+            <Link href="/account" className="min-w-0 flex-1 group">
+              <div className="text-sm font-semibold truncate group-hover:text-accent transition-colors">{userName}</div>
+              <div className="text-[11px] text-muted-soft">{isAdmin ? "Main account" : "Member"} · Settings</div>
+            </Link>
             <button
               onClick={logout}
               title="Logout"
@@ -132,9 +132,9 @@ export function NavShell({
         <header className="lg:hidden sticky top-0 z-40 bg-bg-elevated/90 backdrop-blur-md border-b border-border-soft px-4 py-3 flex items-center justify-between">
           <div>
             <div className="font-display font-semibold text-accent italic text-lg leading-none">FamilyWealth</div>
-            <div className="text-[11px] text-muted-soft mt-1">
-              {userName} {isAdmin ? "· Main" : "· Member"}
-            </div>
+            <Link href="/account" className="text-[11px] text-muted-soft mt-1 block">
+              {userName} {isAdmin ? "· Main" : "· Member"} · Settings
+            </Link>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />

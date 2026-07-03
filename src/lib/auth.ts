@@ -3,9 +3,29 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 
 const SESSION_COOKIE = "fw_session";
-const secret = new TextEncoder().encode(
-  process.env.AUTH_SECRET ?? "dev-only-insecure-secret-change-me"
-);
+
+// AUTH_SECRET signs session JWTs. A missing secret in production is a critical
+// vulnerability (sessions become forgeable), so fail fast there. In development we
+// fall back to a fixed dev secret for convenience. Resolved lazily on first use so
+// `next build` (which imports this module in production mode) doesn't throw — the
+// check fires on the first real request instead.
+let cachedSecret: Uint8Array | null = null;
+function getSecret(): Uint8Array {
+  if (cachedSecret) return cachedSecret;
+  const fromEnv = process.env.AUTH_SECRET;
+  let value: string;
+  if (fromEnv && fromEnv.length >= 16) {
+    value = fromEnv;
+  } else if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AUTH_SECRET is missing or too short. Set a long random value (e.g. `openssl rand -base64 32`) before running in production."
+    );
+  } else {
+    value = "dev-only-insecure-secret-change-me";
+  }
+  cachedSecret = new TextEncoder().encode(value);
+  return cachedSecret;
+}
 
 export type SessionPayload = {
   userId: string;
@@ -26,7 +46,7 @@ export async function createSessionCookie(payload: SessionPayload) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(secret);
+    .sign(getSecret());
 
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
@@ -48,7 +68,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload as unknown as SessionPayload;
   } catch {
     return null;
