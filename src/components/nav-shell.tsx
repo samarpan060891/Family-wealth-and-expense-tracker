@@ -11,6 +11,7 @@ const NAV = [
   { href: "/debts", label: "Debts", icon: "◇" },
   { href: "/assets", label: "Assets", icon: "▣" },
   { href: "/insurance", label: "Insurance", icon: "◉" },
+  { href: "/goals", label: "Goals", icon: "◎" },
 ];
 
 const MOBILE_NAV = [
@@ -21,6 +22,7 @@ const MOBILE_NAV = [
   { href: "/debts", label: "Debts", icon: "◇" },
   { href: "/assets", label: "Assets", icon: "▣" },
   { href: "/insurance", label: "Cover", icon: "◉" },
+  { href: "/goals", label: "Goals", icon: "◎" },
 ];
 
 export function NavShell({

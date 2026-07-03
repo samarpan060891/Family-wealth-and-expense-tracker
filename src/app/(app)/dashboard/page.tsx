@@ -11,7 +11,7 @@ import {
   Line,
   CartesianGrid,
 } from "recharts";
-import { Card, EmptyState, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 
 type Dashboard = {
   monthlyTrend: { month: string; income: number; expense: number }[];
@@ -20,6 +20,23 @@ type Dashboard = {
   totals: { investments: number; assets: number; debts: number; thisMonthExpense: number };
   cashflowProjection: { month: string; projectedIncome: number; projectedExpense: number; net: number; cumulative: number }[];
   upcomingExpiries: { id: string; name: string; type: string; expiryDate: string; kind: string }[];
+};
+
+type Insight = { tone: "positive" | "warning" | "info" | "danger"; title: string; detail: string };
+type Anomaly = { category: string; amount: number; date: string; note: string };
+type Insights = {
+  summary: string;
+  aiGenerated: boolean;
+  aiAvailable: boolean;
+  insights: Insight[];
+  anomalies: Anomaly[];
+};
+
+const TONE_STYLES: Record<Insight["tone"], { border: string; badge: "green" | "accent" | "blue" | "red"; label: string }> = {
+  positive: { border: "border-l-green", badge: "green", label: "Good" },
+  warning: { border: "border-l-accent", badge: "accent", label: "Watch" },
+  info: { border: "border-l-blue", badge: "blue", label: "Tip" },
+  danger: { border: "border-l-red", badge: "red", label: "Risk" },
 };
 
 const chartTooltip = {
@@ -36,11 +53,16 @@ const axisTick = { fill: "var(--muted)", fontSize: 10 };
 
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
+  const [insights, setInsights] = useState<Insights | null>(null);
 
   useEffect(() => {
     fetch("/api/dashboard")
       .then((r) => r.json())
       .then(setData);
+    fetch("/api/insights")
+      .then((r) => r.json())
+      .then(setInsights)
+      .catch(() => {});
   }, []);
 
   if (!data) {
@@ -67,12 +89,69 @@ export default function DashboardPage() {
         })}
       />
 
+      {/* AI / SMART SUMMARY */}
+      {insights?.summary && (
+        <Card className="border-accent/25 bg-gradient-to-br from-accent/[0.07] to-transparent">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">✨</span>
+            <span className="text-sm font-bold">Your Money, Summarized</span>
+            <span className="text-[10px] font-mono uppercase tracking-wide text-muted-soft ml-auto">
+              {insights.aiGenerated ? "AI" : "Auto"}
+            </span>
+          </div>
+          <p className="text-sm leading-relaxed text-text">{insights.summary}</p>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <StatCard label="Net Worth" value={fmtCurrency(data.netWorth)} tone="accent" icon="◆" />
         <StatCard label="This Month Spend" value={fmtCurrency(data.totals.thisMonthExpense)} tone="red" icon="▾" />
         <StatCard label="Investments" value={fmtCurrency(data.totals.investments)} tone="green" icon="◈" />
         <StatCard label="Outstanding Debt" value={fmtCurrency(data.totals.debts)} tone="blue" icon="◇" />
       </div>
+
+      {/* ANOMALY ALERTS */}
+      {insights?.anomalies && insights.anomalies.length > 0 && (
+        <Card className="border-red/25 bg-gradient-to-br from-red/[0.05] to-transparent">
+          <div className="flex items-center gap-2 text-sm font-bold mb-3 text-red">
+            <span>◎</span> Unusual Spending Detected
+          </div>
+          <div className="flex flex-col gap-2">
+            {insights.anomalies.map((a, idx) => (
+              <div key={idx} className="flex justify-between items-center bg-surface2/60 border border-border-soft rounded-xl px-3.5 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <div className="font-semibold">{a.category}</div>
+                  <div className="text-xs text-muted mt-0.5">{a.note}</div>
+                </div>
+                <div className="text-xs font-mono font-semibold text-red shrink-0 pl-3">{fmtCurrency(a.amount)}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* SMART INSIGHTS & RECOMMENDATIONS */}
+      {insights?.insights && insights.insights.length > 0 && (
+        <Card>
+          <div className="text-sm font-bold mb-3 font-mono uppercase tracking-wide text-muted">
+            Smart Insights &amp; Recommendations
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {insights.insights.map((ins, idx) => {
+              const t = TONE_STYLES[ins.tone];
+              return (
+                <div key={idx} className={`border-l-2 ${t.border} bg-surface2/40 rounded-r-xl pl-3 pr-3 py-2.5`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge tone={t.badge}>{t.label}</Badge>
+                    <span className="text-sm font-semibold">{ins.title}</span>
+                  </div>
+                  <div className="text-xs text-muted leading-relaxed">{ins.detail}</div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {data.upcomingExpiries.length > 0 && (
         <Card className="border-accent/25 bg-gradient-to-br from-accent/[0.06] to-transparent">

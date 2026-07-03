@@ -8,6 +8,7 @@ import {
   date,
   boolean,
   timestamp,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -283,6 +284,42 @@ export const marriageBudgets = pgTable("marriage_budgets", {
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Financial goals the household is saving toward (vacation, emergency fund, etc.).
+export const goals = pgTable("goals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  createdById: uuid("created_by_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 150 }).notNull(),
+  category: varchar("category", { length: 60 }),
+  targetAmount: numeric("target_amount", { precision: 14, scale: 2 }).notNull(),
+  currentAmount: numeric("current_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+  targetDate: date("target_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Daily-ish net-worth snapshots so month-over-month deltas become real over time.
+// One row per household per day (composite PK), written on dashboard/insights load.
+export const netWorthSnapshots = pgTable(
+  "net_worth_snapshots",
+  {
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    netWorth: numeric("net_worth", { precision: 16, scale: 2 }).notNull(),
+    investments: numeric("investments", { precision: 16, scale: 2 }).notNull(),
+    assets: numeric("assets", { precision: 16, scale: 2 }).notNull(),
+    debts: numeric("debts", { precision: 16, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.householdId, t.date] })]
+);
 
 export const householdsRelations = relations(households, ({ many }) => ({
   users: many(users),
