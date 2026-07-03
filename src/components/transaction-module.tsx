@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, fmtCurrency } from "@/components/ui";
+import { useToast } from "@/components/toast";
 import { PAYMENT_METHODS, FREQUENCIES } from "@/lib/categories";
 import { uploadAttachment, scanDocument } from "@/components/attachment-uploader";
 import { RowAttachments } from "@/components/row-attachments";
@@ -20,8 +21,10 @@ type Tx = {
 };
 
 export function TransactionModule({ type }: { type: "expense" | "income" }) {
+  const { success, error: toastError } = useToast();
   const [items, setItems] = useState<Tx[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -41,12 +44,16 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   });
 
   async function load() {
-    const [txRes, catRes] = await Promise.all([
-      fetch(`/api/transactions?type=${type}`).then((r) => r.json()),
-      fetch(`/api/categories?module=${type}`).then((r) => r.json()),
-    ]);
-    setItems(txRes.transactions ?? []);
-    setCategories(catRes.categories ?? []);
+    try {
+      const [txRes, catRes] = await Promise.all([
+        fetch(`/api/transactions?type=${type}`).then((r) => r.json()),
+        fetch(`/api/categories?module=${type}`).then((r) => r.json()),
+      ]);
+      setItems(txRes.transactions ?? []);
+      setCategories(catRes.categories ?? []);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -120,6 +127,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       }
       setOpen(false);
       resetForm();
+      success(`${label} saved.`);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -129,8 +137,14 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   }
 
   async function onDelete(id: string) {
-    await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-    load();
+    if (!confirm(`Delete this ${label.toLowerCase()} entry?`)) return;
+    const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      success(`${label} deleted.`);
+      load();
+    } else {
+      toastError("Could not delete this entry.");
+    }
   }
 
   const months = Array.from(new Set(items.map((i) => i.date.slice(0, 7)))).sort().reverse();
@@ -170,7 +184,19 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       </Card>
 
       <Card>
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-col gap-3 animate-pulse">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex justify-between items-center py-1">
+                <div className="flex-1">
+                  <div className="h-3 w-32 bg-surface3 rounded mb-2" />
+                  <div className="h-2.5 w-24 bg-surface3 rounded" />
+                </div>
+                <div className="h-3 w-16 bg-surface3 rounded" />
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={type === "expense" ? "▾" : "▴"}
             title={`No ${label.toLowerCase()} entries`}

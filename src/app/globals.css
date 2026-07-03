@@ -133,6 +133,17 @@ textarea {
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
+/* On touch/small screens use a 16px control font so iOS Safari doesn't
+   auto-zoom on focus, and give bigger tap targets. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+    padding: 12px 14px;
+  }
+}
+
 input:hover,
 select:hover,
 textarea:hover {
