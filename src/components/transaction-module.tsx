@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, fmtCurrency } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { PAYMENT_METHODS, FREQUENCIES } from "@/lib/categories";
 import { uploadAttachment, scanDocument } from "@/components/attachment-uploader";
+import { DocumentScanField } from "@/components/document-scan-field";
 import { RowAttachments } from "@/components/row-attachments";
 import { cleanAmount } from "@/lib/extract-fields";
 
@@ -32,7 +33,6 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [file, setFile] = useState<File | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     categoryId: "",
     amount: "",
@@ -72,7 +72,6 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     });
     setFile(null);
     setScanNote("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function onFilePicked(picked: File | null) {
@@ -327,24 +326,13 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
               placeholder="Optional description"
             />
           </div>
-          <div>
-            <label>Bill / Receipt — auto-fills the form (optional)</label>
-            <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
-              <span>{scanning ? "⏳" : "📎"}</span>
-              <span className="truncate">
-                {scanning ? "Reading document…" : file ? file.name : "Capture a photo or upload a bill (PDF / image)"}
-              </span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.pdf,.xls,.xlsx,.csv"
-                capture="environment"
-                onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
-                className="hidden"
-              />
-            </label>
-            {scanNote && <div className="text-xs text-accent mt-1.5">{scanNote}</div>}
-          </div>
+          <DocumentScanField
+            label="Bill / Receipt — auto-fills the form (optional)"
+            scanning={scanning}
+            scanNote={scanNote}
+            file={file}
+            onFilePicked={(f) => onFilePicked(f)}
+          />
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>
             {saving ? "Saving…" : "Save"}

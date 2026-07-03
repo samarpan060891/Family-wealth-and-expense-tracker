@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { useDocumentScan } from "@/components/use-document-scan";
+import { DocumentScanField } from "@/components/document-scan-field";
 import { RowAttachments } from "@/components/row-attachments";
 import { AmortizationModal } from "@/components/amortization-modal";
 import { cleanAmount } from "@/lib/extract-fields";
@@ -43,7 +44,7 @@ export default function DebtsPage() {
   const [amortizationDebtId, setAmortizationDebtId] = useState<string | null>(null);
   const matchType = (t: string | null | undefined) =>
     (t && DEBT_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
-  const { file, scanning, scanNote, fileInputRef, onFilePicked, reset } = useDocumentScan("debt", (f) =>
+  const { file, scanning, scanNote, onFilePicked, reset } = useDocumentScan("debt", (f) =>
     setForm((prev) => ({
       ...prev,
       name: f.name || prev.name,
@@ -229,24 +230,13 @@ export default function DebtsPage() {
               onChange={(e) => setForm({ ...form, endDate: e.target.value })}
             />
           </div>
-          <div>
-            <label>Loan Statement — auto-fills the form (optional)</label>
-            <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
-              <span>{scanning ? "⏳" : "📎"}</span>
-              <span className="truncate">
-                {scanning ? "Reading document…" : file ? file.name : "Upload a statement (photo or PDF)"}
-              </span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,.pdf,.xls,.xlsx,.csv"
-                capture="environment"
-                onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
-                className="hidden"
-              />
-            </label>
-            {scanNote && <div className="text-xs text-accent mt-1.5">{scanNote}</div>}
-          </div>
+          <DocumentScanField
+            label="Loan Statement — auto-fills the form (optional)"
+            scanning={scanning}
+            scanNote={scanNote}
+            file={file}
+            onFilePicked={onFilePicked}
+          />
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>
             {saving ? "Saving…" : "Save"}
