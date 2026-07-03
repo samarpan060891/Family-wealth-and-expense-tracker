@@ -33,7 +33,8 @@ per-family-member sharing controls.
   category, policy number, premium, helplines, etc.) are pre-filled for you
   to review. Requires `ANTHROPIC_API_KEY`; without it, uploads still attach
   normally, just without auto-detection. The model is configurable via
-  `EXTRACTION_MODEL` (defaults to `claude-opus-4-8`).
+  `EXTRACTION_MODEL` (defaults to `claude-haiku-4-5` — cheapest; set
+  `claude-opus-4-8` for higher accuracy on complex documents).
 - **Insurance emergency contacts & helplines** — each policy stores its
   claim/customer-care/agent numbers, surfaced on the Insurance page as
   tap-to-call links alongside national emergency helplines for the

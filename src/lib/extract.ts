@@ -1,8 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 // Model is configurable so the deployer can trade cost for accuracy.
-// Defaults to Claude Opus 4.8; set EXTRACTION_MODEL=claude-haiku-4-5 (etc.) to reduce cost.
-const MODEL = process.env.EXTRACTION_MODEL ?? "claude-opus-4-8";
+// Defaults to Claude Haiku 4.5 (cheapest, well-suited to reading bills/statements);
+// set EXTRACTION_MODEL=claude-opus-4-8 for higher accuracy on complex documents.
+const MODEL = process.env.EXTRACTION_MODEL ?? "claude-haiku-4-5";
 
 export type ExtractModule = "expense" | "income" | "investment" | "debt" | "asset" | "insurance";
 
@@ -127,7 +128,6 @@ export async function extractFromDocument(params: {
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 1024,
-    output_config: { effort: "low" },
     messages: [
       {
         role: "user",
