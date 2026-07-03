@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -14,15 +15,25 @@ const NAV = [
   { href: "/goals", label: "Goals", icon: "◎" },
 ];
 
-const MOBILE_NAV = [
+// Four most-used destinations get a permanent bottom-tab; everything else lives
+// behind the "More" sheet so the bar stays thumb-friendly and never scrolls.
+const MOBILE_PRIMARY = [
   { href: "/dashboard", label: "Home", icon: "◆" },
-  { href: "/expenses", label: "Expense", icon: "▾" },
-  { href: "/income", label: "Income", icon: "▴" },
+  { href: "/expenses", label: "Expenses", icon: "▾" },
   { href: "/investments", label: "Invest", icon: "◈" },
   { href: "/debts", label: "Debts", icon: "◇" },
+];
+
+const MOBILE_MORE = [
+  { href: "/income", label: "Income", icon: "▴" },
   { href: "/assets", label: "Assets", icon: "▣" },
-  { href: "/insurance", label: "Cover", icon: "◉" },
+  { href: "/insurance", label: "Insurance", icon: "◉" },
   { href: "/goals", label: "Goals", icon: "◎" },
+];
+
+const MOBILE_MORE_ADMIN = [
+  { href: "/planning", label: "Life Planning", icon: "◎" },
+  { href: "/family", label: "Family Sharing", icon: "◐" },
 ];
 
 export function NavShell({
@@ -38,6 +49,10 @@ export function NavShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const moreItems = isAdmin ? [...MOBILE_MORE, ...MOBILE_MORE_ADMIN] : MOBILE_MORE;
+  const moreActive = moreItems.some((i) => i.href === pathname);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -138,35 +153,7 @@ export function NavShell({
               {userName} {isAdmin ? "· Main" : "· Member"} · Settings
             </Link>
           </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            {isAdmin && (
-              <Link
-                href="/planning"
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border border-border ${
-                  pathname === "/planning" ? "text-accent border-accent/50" : "text-muted"
-                }`}
-              >
-                Plan
-              </Link>
-            )}
-            {isAdmin && (
-              <Link
-                href="/family"
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border border-border ${
-                  pathname === "/family" ? "text-accent border-accent/50" : "text-muted"
-                }`}
-              >
-                Family
-              </Link>
-            )}
-            <button
-              onClick={logout}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface2 border border-border text-muted"
-            >
-              Exit
-            </button>
-          </div>
+          <ThemeToggle />
         </header>
 
         <main className="flex-1 px-4 sm:px-6 lg:px-10 py-5 lg:py-8 max-w-5xl w-full mx-auto">
@@ -174,24 +161,78 @@ export function NavShell({
         </main>
       </div>
 
+      {/* MOBILE "MORE" SHEET */}
+      {moreOpen && (
+        <div className="lg:hidden fixed inset-0 z-50" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={() => setMoreOpen(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-bg-elevated border-t border-border rounded-t-2xl p-4 pb-6 animate-fade-up">
+            <div className="w-10 h-1 rounded-full bg-border mx-auto mb-4" />
+            <div className="grid grid-cols-3 gap-2">
+              {moreItems.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-colors ${
+                      active ? "bg-accent-glow text-accent" : "text-muted hover:bg-surface2"
+                    }`}
+                  >
+                    <span className="text-base leading-none">{item.icon}</span>
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <Link
+                href="/account"
+                onClick={() => setMoreOpen(false)}
+                className={`flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-colors ${
+                  pathname === "/account" ? "bg-accent-glow text-accent" : "text-muted hover:bg-surface2"
+                }`}
+              >
+                <span className="text-base leading-none">⚙</span>
+                Settings
+              </Link>
+              <button
+                onClick={logout}
+                className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold text-muted hover:bg-surface2 transition-colors"
+              >
+                <span className="text-base leading-none">⏻</span>
+                Log out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MOBILE BOTTOM NAV */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-bg-elevated/95 backdrop-blur-md border-t border-border-soft z-40">
-        <div className="flex justify-around max-w-2xl mx-auto overflow-x-auto no-scrollbar">
-          {MOBILE_NAV.map((item) => {
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-bg-elevated/95 backdrop-blur-md border-t border-border-soft z-40 pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5 max-w-2xl mx-auto">
+          {MOBILE_PRIMARY.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center gap-1 py-2.5 px-2.5 text-[10px] font-semibold transition-colors ${
+                className={`flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors ${
                   active ? "text-accent" : "text-muted-soft"
                 }`}
               >
-                <span className="text-sm leading-none">{item.icon}</span>
+                <span className="text-base leading-none">{item.icon}</span>
                 {item.label}
               </Link>
             );
           })}
+          <button
+            onClick={() => setMoreOpen(true)}
+            className={`flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors ${
+              moreActive || moreOpen ? "text-accent" : "text-muted-soft"
+            }`}
+          >
+            <span className="text-base leading-none">⋯</span>
+            More
+          </button>
         </div>
       </nav>
     </div>

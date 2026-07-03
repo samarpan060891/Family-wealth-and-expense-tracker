@@ -9,6 +9,7 @@ import {
   boolean,
   timestamp,
   primaryKey,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -282,6 +283,31 @@ export const marriageBudgets = pgTable("marriage_budgets", {
   createdById: uuid("created_by_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type InviteGrant = {
+  module: "expense" | "income" | "investment" | "debt" | "asset" | "insurance";
+  category: string | null;
+  accessLevel: "view" | "edit";
+};
+
+// Pending family invitations. The admin generates one (with pre-chosen permissions),
+// shares the link, and the invitee accepts by setting their own name + password.
+export const invites = pgTable("invites", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  email: varchar("email", { length: 200 }),
+  suggestedName: varchar("suggested_name", { length: 120 }),
+  grants: jsonb("grants").$type<InviteGrant[]>().notNull().default([]),
+  invitedById: uuid("invited_by_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  acceptedAt: timestamp("accepted_at"),
+  expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
