@@ -1,9 +1,8 @@
 "use client";
-import { CaptureOrUpload } from "@/components/capture-or-upload";
 
-// Wraps the Capture/Upload control for use inside an add-record form, forwarding
-// the picked file to the useDocumentScan hook (which compresses-then-scans for
-// auto-fill and keeps the file to attach on save).
+// A simple file upload used inside the add-record forms. Picks a bill / statement
+// / policy (PDF, Excel or image) and forwards it to the useDocumentScan hook,
+// which reads it for auto-fill and keeps it to attach on save.
 export function DocumentScanField({
   label,
   scanning,
@@ -20,12 +19,19 @@ export function DocumentScanField({
   return (
     <div>
       <label>{label}</label>
-      <CaptureOrUpload
-        onSelect={(f) => onFilePicked(f)}
-        busy={scanning}
-        note={scanning ? "Reading document…" : scanNote || undefined}
-        currentName={file?.name ?? null}
-      />
+      <label className="!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex items-center gap-2 border-2 border-dashed border-border hover:border-accent/50 hover:bg-accent-glow rounded-xl px-3 py-2.5 cursor-pointer transition-colors text-muted">
+        <span>{scanning ? "⏳" : "📎"}</span>
+        <span className="truncate">
+          {scanning ? "Reading document…" : file ? file.name : "Upload a bill / statement (PDF, Excel or image)"}
+        </span>
+        <input
+          type="file"
+          accept="image/*,.pdf,.xls,.xlsx,.csv"
+          onChange={(e) => onFilePicked(e.target.files?.[0] ?? null)}
+          className="hidden"
+        />
+      </label>
+      {scanNote && <div className="text-xs text-accent mt-1.5">{scanNote}</div>}
     </div>
   );
 }

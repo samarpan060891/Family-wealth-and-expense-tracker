@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CaptureOrUpload } from "@/components/capture-or-upload";
 
 type Attachment = { id: string; fileName: string; fileType: string };
 type Module = "expense" | "income" | "investment" | "debt" | "asset" | "insurance";
@@ -82,7 +81,9 @@ export function AttachmentUploader({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordId]);
 
-  async function onSelect(file: File) {
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
     setUploading(true);
     setError("");
     try {
@@ -92,6 +93,7 @@ export function AttachmentUploader({
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
   }
 
@@ -102,11 +104,25 @@ export function AttachmentUploader({
 
   return (
     <div className="flex flex-col gap-3">
-      <CaptureOrUpload
-        onSelect={onSelect}
-        busy={uploading}
-        note={uploading ? "Uploading…" : undefined}
-      />
+      <label
+        className={`!mb-0 !normal-case !tracking-normal !text-sm !font-medium flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl px-4 py-6 cursor-pointer transition-colors text-center ${
+          uploading ? "border-border text-muted-soft" : "border-border hover:border-accent/50 hover:bg-accent-glow text-muted"
+        }`}
+      >
+        <span className="text-xl">📎</span>
+        <span>
+          {uploading ? "Uploading…" : "Upload a bill / statement / policy"}
+          <br />
+          <span className="text-xs text-muted-soft">PDF, Excel or image</span>
+        </span>
+        <input
+          type="file"
+          accept="image/*,.pdf,.xls,.xlsx,.csv"
+          disabled={uploading}
+          onChange={onFileChange}
+          className="hidden"
+        />
+      </label>
       {error && <div className="text-red text-xs">{error}</div>}
       {attachments.length > 0 && (
         <div className="flex flex-col gap-1.5">
