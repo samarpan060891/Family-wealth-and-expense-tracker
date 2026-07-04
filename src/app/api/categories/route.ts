@@ -44,13 +44,25 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
+  const name = parsed.data.name.trim();
+  if (!name) return NextResponse.json({ error: "Enter a category name." }, { status: 400 });
+
   const db = await getDb();
+
+  // Prevent duplicates (case-insensitive) within the same household + module.
+  const existing = await db
+    .select({ id: categories.id, name: categories.name })
+    .from(categories)
+    .where(and(eq(categories.householdId, session.householdId), eq(categories.module, parsed.data.module)));
+  if (existing.some((c) => c.name.toLowerCase() === name.toLowerCase()))
+    return NextResponse.json({ error: "That category already exists." }, { status: 409 });
+
   const [row] = await db
     .insert(categories)
     .values({
       householdId: session.householdId,
       module: parsed.data.module,
-      name: parsed.data.name,
+      name,
       color: parsed.data.color ?? "#f0a500",
     })
     .returning();

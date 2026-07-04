@@ -35,6 +35,9 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [file, setFile] = useState<File | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState("");
+  const [addingCat, setAddingCat] = useState(false);
+  const [newCat, setNewCat] = useState("");
+  const [savingCat, setSavingCat] = useState(false);
   const [form, setForm] = useState({
     categoryId: "",
     amount: "",
@@ -61,6 +64,35 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   useEffect(() => {
     load();
   }, [type]);
+
+  // Create a category on the fly from the Add form and select it.
+  async function createCategory() {
+    const name = newCat.trim();
+    if (!name) return;
+    setSavingCat(true);
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ module: type, name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toastError(data.error ?? "Couldn't add category.");
+        return;
+      }
+      const catRes = await fetch(`/api/categories?module=${type}`).then((r) => r.json());
+      const list: Category[] = catRes.categories ?? [];
+      setCategories(list);
+      const created = list.find((c) => c.name.toLowerCase() === name.toLowerCase());
+      if (created) setForm((prev) => ({ ...prev, categoryId: created.id }));
+      setNewCat("");
+      setAddingCat(false);
+      success("Category added.");
+    } finally {
+      setSavingCat(false);
+    }
+  }
 
   function resetForm() {
     setForm({
@@ -272,19 +304,66 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
             🎤 Fill with voice
           </button>
           <div>
-            <label>Category</label>
-            <select
-              required
-              value={form.categoryId}
-              onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-            >
-              <option value="">-- Select --</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between">
+              <label>Category</label>
+              {!addingCat && (
+                <button
+                  type="button"
+                  onClick={() => setAddingCat(true)}
+                  className="text-xs font-semibold text-accent hover:text-accent-soft mb-1.5"
+                >
+                  ＋ New
+                </button>
+              )}
+            </div>
+            {addingCat ? (
+              <div className="flex gap-2">
+                <input
+                  autoFocus
+                  value={newCat}
+                  onChange={(e) => setNewCat(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      createCategory();
+                    }
+                    if (e.key === "Escape") {
+                      setAddingCat(false);
+                      setNewCat("");
+                    }
+                  }}
+                  placeholder={`New ${label.toLowerCase()} category`}
+                  maxLength={80}
+                  className="flex-1"
+                />
+                <Button type="button" onClick={createCategory} disabled={savingCat}>
+                  {savingCat ? "…" : "Add"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setAddingCat(false);
+                    setNewCat("");
+                  }}
+                >
+                  ✕
+                </Button>
+              </div>
+            ) : (
+              <select
+                required
+                value={form.categoryId}
+                onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+              >
+                <option value="">-- Select --</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label>Amount</label>

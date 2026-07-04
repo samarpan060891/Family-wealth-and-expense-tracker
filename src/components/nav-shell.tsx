@@ -34,6 +34,7 @@ const MOBILE_MORE = [
 
 const MOBILE_MORE_ADMIN = [
   { href: "/planning", label: "Life Planning", icon: "◎" },
+  { href: "/categories", label: "Categories", icon: "◧" },
   { href: "/family", label: "Family Sharing", icon: "◐" },
 ];
 
@@ -123,6 +124,15 @@ export function NavShell({
               >
                 <span className="text-xs w-4 text-center text-muted-soft">◎</span>
                 Life Planning
+              </Link>
+              <Link
+                href="/categories"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/categories" ? "bg-accent-glow text-accent" : "text-muted hover:text-text hover:bg-surface2"
+                }`}
+              >
+                <span className="text-xs w-4 text-center text-muted-soft">◧</span>
+                Categories
               </Link>
               <Link
                 href="/family"
