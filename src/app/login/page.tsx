@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Card, PasswordInput } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { markUnlocked } from "@/lib/app-lock-client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,6 +28,9 @@ export default function LoginPage() {
       setError(data.error ?? "Login failed");
       return;
     }
+    // A full-password login satisfies App Lock for this session, so the user
+    // isn't immediately asked for their PIN again (also the "Forgot PIN" path).
+    markUnlocked();
     router.push("/dashboard");
     router.refresh();
   }

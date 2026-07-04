@@ -25,7 +25,12 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   // Camera is allowed on same-origin for the "capture a photo of a bill" flow.
-  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), interest-cohort=()" },
+  // Camera for bill capture; publickey-credentials-* for App Lock biometric (WebAuthn).
+  {
+    key: "Permissions-Policy",
+    value:
+      "camera=(self), microphone=(), geolocation=(), interest-cohort=(), publickey-credentials-get=(self), publickey-credentials-create=(self)",
+  },
 ];
 
 const nextConfig: NextConfig = {

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Button, Card, PageHeader, PasswordInput } from "@/components/ui";
+import { AppLockSettings } from "@/components/app-lock-settings";
 
 export default function AccountPage() {
   const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirm: "" });
@@ -39,7 +40,10 @@ export default function AccountPage() {
 
   return (
     <div className="flex flex-col gap-5 stagger max-w-md">
-      <PageHeader title="Account" accent="Security" sub="Change your password" />
+      <PageHeader title="Account" accent="Security" sub="Password & App Lock" />
+
+      <AppLockSettings />
+
       <Card>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div>

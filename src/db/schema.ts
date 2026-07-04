@@ -7,6 +7,7 @@ import {
   numeric,
   date,
   boolean,
+  integer,
   timestamp,
   primaryKey,
   jsonb,
@@ -64,6 +65,25 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 200 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("member"),
+  // App Lock: an optional local re-auth gate on top of the login session.
+  appLockEnabled: boolean("app_lock_enabled").notNull().default(false),
+  pinHash: text("pin_hash"), // bcrypt hash of the 4-digit PIN; never stored in plain text
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Platform biometric credentials (WebAuthn) used to unlock App Lock via
+// Face ID / Fingerprint. The private key never leaves the device; we store only
+// the public key and signature counter to verify assertions server-side.
+export const webauthnCredentials = pgTable("webauthn_credentials", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  credentialId: text("credential_id").notNull().unique(), // base64url
+  publicKey: text("public_key").notNull(), // base64url of COSE public key bytes
+  counter: integer("counter").notNull().default(0),
+  transports: jsonb("transports").$type<string[]>().notNull().default([]),
+  deviceLabel: varchar("device_label", { length: 120 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
