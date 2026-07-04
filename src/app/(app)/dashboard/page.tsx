@@ -18,7 +18,6 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Badge, Card, EmptyState, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
-import { useVoice } from "@/components/voice-command";
 
 type Tx = {
   id: string;
@@ -76,7 +75,6 @@ const chartTooltip = {
 const axisTick = { fill: "var(--muted)", fontSize: 10 };
 
 export default function DashboardPage() {
-  const { open: openVoice } = useVoice();
   const [data, setData] = useState<Dashboard | null>(null);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [drill, setDrill] = useState<string | null>(null);
@@ -135,22 +133,6 @@ export default function DashboardPage() {
           </Link>
         }
       />
-
-      {/* VOICE COMMAND */}
-      <button
-        onClick={() => openVoice()}
-        className="group flex items-center gap-3 w-full text-left bg-gradient-to-r from-accent/[0.12] to-transparent border border-accent/25 rounded-2xl px-4 py-3.5 hover:border-accent/50 transition-colors"
-      >
-        <span className="w-11 h-11 shrink-0 rounded-full bg-accent text-black flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-          🎤
-        </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-bold">Voice Command</span>
-          <span className="block text-xs text-muted truncate">
-            “Add expense of 2500 for groceries” · “Show my net worth”
-          </span>
-        </span>
-      </button>
 
       {/* AI / SMART SUMMARY */}
       {insights?.summary && (

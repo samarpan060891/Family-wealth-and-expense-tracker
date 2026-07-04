@@ -6,7 +6,6 @@ import { PAYMENT_METHODS, FREQUENCIES } from "@/lib/categories";
 import { uploadAttachment, scanDocument } from "@/components/attachment-uploader";
 import { DocumentScanField } from "@/components/document-scan-field";
 import { RowAttachments } from "@/components/row-attachments";
-import { useVoice } from "@/components/voice-command";
 import { cleanAmount } from "@/lib/extract-fields";
 
 type Category = { id: string; name: string };
@@ -24,7 +23,6 @@ type Tx = {
 
 export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const { success, error: toastError } = useToast();
-  const { open: openVoice } = useVoice();
   const [items, setItems] = useState<Tx[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,25 +104,6 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     });
     setFile(null);
     setScanNote("");
-  }
-
-  // Fill the form from a voice command scoped to this module.
-  function fillFromVoice(f: Record<string, string | number | boolean | null>) {
-    const catName = f.categoryName != null ? String(f.categoryName).toLowerCase() : "";
-    const matchedCat = catName ? categories.find((c) => c.name.toLowerCase() === catName) : undefined;
-    const recurring = f.isRecurring === true || f.isRecurring === "true";
-    setForm((prev) => ({
-      ...prev,
-      amount: cleanAmount(f.amount == null ? "" : String(f.amount)) || prev.amount,
-      date: typeof f.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(f.date) ? f.date : prev.date,
-      categoryId: matchedCat?.id || prev.categoryId,
-      paymentMethod: f.paymentMethod ? String(f.paymentMethod) : prev.paymentMethod,
-      note: f.note ? String(f.note) : prev.note,
-      isRecurring: recurring,
-      recurrenceFrequency: recurring
-        ? (typeof f.recurrenceFrequency === "string" ? f.recurrenceFrequency : "monthly")
-        : prev.recurrenceFrequency,
-    }));
   }
 
   async function onFilePicked(picked: File | null) {
@@ -296,13 +275,6 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
           </div>
         ) : (
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => openVoice({ module: type, onFilled: fillFromVoice })}
-            className="flex items-center justify-center gap-2 border border-accent/40 text-accent hover:bg-accent-glow rounded-xl py-2.5 text-sm font-semibold transition-colors"
-          >
-            🎤 Fill with voice
-          </button>
           <div>
             <div className="flex items-center justify-between">
               <label>Category</label>

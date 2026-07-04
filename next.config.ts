@@ -24,12 +24,11 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-  // Camera for bill capture; microphone for voice commands (Web Speech API);
-  // publickey-credentials-* for App Lock biometric (WebAuthn). All same-origin only.
+  // Camera for bill capture; publickey-credentials-* for App Lock biometric (WebAuthn).
   {
     key: "Permissions-Policy",
     value:
-      "camera=(self), microphone=(self), geolocation=(), interest-cohort=(), publickey-credentials-get=(self), publickey-credentials-create=(self)",
+      "camera=(self), microphone=(), geolocation=(), interest-cohort=(), publickey-credentials-get=(self), publickey-credentials-create=(self)",
   },
 ];
 
