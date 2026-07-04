@@ -46,6 +46,7 @@ export default function InvestmentsPage() {
   const { success, error: toastError } = useToast();
   const [items, setItems] = useState<Investment[]>([]);
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,7 +75,33 @@ export default function InvestmentsPage() {
 
   function resetForm() {
     setForm(EMPTY_FORM);
+    setEditId(null);
     reset();
+  }
+
+  function openAdd() {
+    resetForm();
+    setError("");
+    setOpen(true);
+  }
+
+  function openEdit(i: Investment) {
+    setEditId(i.id);
+    setError("");
+    setForm({
+      name: i.name,
+      type: i.type,
+      investedAmount: i.investedAmount,
+      currentValue: i.currentValue ?? "",
+      purchaseDate: i.purchaseDate,
+      maturityDate: i.maturityDate ?? "",
+      expectedReturnRate: i.expectedReturnRate ?? "",
+      notes: i.notes ?? "",
+      autoUpdate: i.autoUpdate,
+      symbol: i.symbol ?? "",
+      quantity: i.quantity ?? "",
+    });
+    setOpen(true);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -82,8 +109,8 @@ export default function InvestmentsPage() {
     setError("");
     setSaving(true);
     try {
-      const res = await fetch("/api/investments", {
-        method: "POST",
+      const res = await fetch(editId ? `/api/investments/${editId}` : "/api/investments", {
+        method: editId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
@@ -143,7 +170,7 @@ export default function InvestmentsPage() {
                 {refreshing ? "Refreshing…" : "↻ Prices"}
               </Button>
             )}
-            <Button onClick={() => setOpen(true)}>+ Add</Button>
+            <Button onClick={openAdd}>+ Add</Button>
           </div>
         }
       />
@@ -192,9 +219,14 @@ export default function InvestmentsPage() {
                   <div className="font-mono text-sm font-semibold text-green">
                     {fmtCurrency(Number(i.currentValue ?? i.investedAmount))}
                   </div>
-                  <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
-                    Delete
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => openEdit(i)} className="text-xs text-accent hover:text-accent-soft transition-colors">
+                      Edit
+                    </button>
+                    <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -208,7 +240,7 @@ export default function InvestmentsPage() {
           setOpen(false);
           resetForm();
         }}
-        title="Add Investment"
+        title={editId ? "Edit Investment" : "Add Investment"}
       >
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <div>
