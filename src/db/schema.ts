@@ -154,6 +154,15 @@ export const investments = pgTable("investments", {
   maturityDate: date("maturity_date"),
   expectedReturnRate: numeric("expected_return_rate", { precision: 5, scale: 2 }),
   notes: text("notes"),
+  // Market-price auto-update: when enabled with a symbol + quantity, a weekly job
+  // refreshes currentValue = quantity × latest price (converted to INR).
+  autoUpdate: boolean("auto_update").notNull().default(false),
+  // Yahoo Finance ticker (e.g. AAPL, RELIANCE.NS, GOLDBEES.NS) or a numeric AMFI
+  // mutual-fund scheme code (e.g. 120503).
+  symbol: varchar("symbol", { length: 40 }),
+  quantity: numeric("quantity", { precision: 18, scale: 6 }),
+  lastPrice: numeric("last_price", { precision: 18, scale: 6 }),
+  lastPricedAt: timestamp("last_priced_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

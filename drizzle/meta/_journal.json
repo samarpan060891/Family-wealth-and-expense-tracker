@@ -43,6 +43,13 @@
       "when": 1783146160407,
       "tag": "0005_uneven_thunderbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783165438419,
+      "tag": "0006_lyrical_the_hand",
+      "breakpoints": true
     }
   ]
 }

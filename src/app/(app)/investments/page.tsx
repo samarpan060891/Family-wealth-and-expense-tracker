@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
+import { useToast } from "@/components/toast";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { useDocumentScan } from "@/components/use-document-scan";
 import { DocumentScanField } from "@/components/document-scan-field";
@@ -18,6 +19,10 @@ type Investment = {
   maturityDate: string | null;
   expectedReturnRate: string | null;
   notes: string | null;
+  autoUpdate: boolean;
+  symbol: string | null;
+  quantity: string | null;
+  lastPricedAt: string | null;
 };
 
 const EMPTY_FORM = {
@@ -29,13 +34,21 @@ const EMPTY_FORM = {
   maturityDate: "",
   expectedReturnRate: "",
   notes: "",
+  autoUpdate: false,
+  symbol: "",
+  quantity: "",
 };
 
+// Investment types whose value tracks a live market price.
+const MARKET_TYPES = new Set(["Mutual Fund", "Stocks", "ETF", "Gold", "Bonds", "Cryptocurrency"]);
+
 export default function InvestmentsPage() {
+  const { success, error: toastError } = useToast();
   const [items, setItems] = useState<Investment[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const matchType = (t: string | null | undefined) =>
     (t && INVESTMENT_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
@@ -92,13 +105,48 @@ export default function InvestmentsPage() {
     load();
   }
 
+  async function refreshPrices() {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/investments/refresh-prices", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toastError(data.error ?? "Couldn't refresh prices.");
+        return;
+      }
+      if (data.updated === 0 && data.failed === 0) {
+        toastError("No auto-updating holdings yet. Add a symbol & quantity to a holding.");
+      } else {
+        success(`Updated ${data.updated} holding${data.updated === 1 ? "" : "s"}${data.failed ? `, ${data.failed} failed` : ""}.`);
+      }
+      load();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const hasAuto = items.some((i) => i.autoUpdate);
+
   const totalInvested = items.reduce((s, i) => s + Number(i.investedAmount), 0);
   const totalCurrent = items.reduce((s, i) => s + Number(i.currentValue ?? i.investedAmount), 0);
   const gain = totalCurrent - totalInvested;
 
   return (
     <div className="flex flex-col gap-5 stagger">
-      <PageHeader title="Investments" sub={`${items.length} holdings`} action={<Button onClick={() => setOpen(true)}>+ Add</Button>} />
+      <PageHeader
+        title="Investments"
+        sub={`${items.length} holdings`}
+        action={
+          <div className="flex gap-2">
+            {hasAuto && (
+              <Button variant="outline" onClick={refreshPrices} disabled={refreshing}>
+                {refreshing ? "Refreshing…" : "↻ Prices"}
+              </Button>
+            )}
+            <Button onClick={() => setOpen(true)}>+ Add</Button>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
         <StatCard label="Total Invested" value={fmtCurrency(totalInvested)} tone="accent" icon="◈" />
@@ -120,11 +168,22 @@ export default function InvestmentsPage() {
             {items.map((i) => (
               <div key={i.id} className="flex justify-between items-start py-3 first:pt-0 last:pb-0">
                 <div className="min-w-0">
-                  <div className="font-semibold text-sm">{i.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm">{i.name}</span>
+                    {i.autoUpdate && <Badge tone="green">Auto</Badge>}
+                  </div>
                   <div className="text-xs text-muted mt-0.5">
                     {i.type} · Since {i.purchaseDate}
                     {i.maturityDate ? ` · Matures ${i.maturityDate}` : ""}
                   </div>
+                  {i.autoUpdate && (
+                    <div className="text-[11px] text-muted-soft mt-0.5">
+                      {i.symbol} · {i.quantity} units
+                      {i.lastPricedAt
+                        ? ` · priced ${new Date(i.lastPricedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}`
+                        : " · not priced yet"}
+                    </div>
+                  )}
                   <div className="mt-1.5">
                     <RowAttachments module="investment" recordId={i.id} label={i.name} />
                   </div>
@@ -166,6 +225,47 @@ export default function InvestmentsPage() {
               ))}
             </select>
           </div>
+          {MARKET_TYPES.has(form.type) && (
+            <div className="border border-border rounded-xl p-3 bg-surface2/40">
+              <label className="!mb-0 !normal-case flex items-center gap-2 text-sm text-text">
+                <input
+                  type="checkbox"
+                  className="!w-auto"
+                  checked={form.autoUpdate}
+                  onChange={(e) => setForm({ ...form, autoUpdate: e.target.checked })}
+                />
+                Auto-update value from market price (weekly)
+              </label>
+              {form.autoUpdate && (
+                <div className="mt-3 flex flex-col gap-2">
+                  <div>
+                    <label>Symbol / Scheme code</label>
+                    <input
+                      value={form.symbol}
+                      onChange={(e) => setForm({ ...form, symbol: e.target.value })}
+                      placeholder={form.type === "Mutual Fund" ? "AMFI code e.g. 120503" : "Ticker e.g. AAPL, RELIANCE.NS, GOLDBEES.NS"}
+                    />
+                  </div>
+                  <div>
+                    <label>Quantity / Units held</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={form.quantity}
+                      onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                      placeholder="e.g. 25 shares / 340.5 units"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-soft leading-relaxed">
+                    Value = quantity × latest price. Mutual funds use the AMFI scheme code (NAV in ₹); stocks/ETFs/metals use a
+                    Yahoo Finance ticker (use <code>.NS</code>/<code>.BO</code> for NSE/BSE, e.g. GOLDBEES.NS for gold). Foreign
+                    prices are converted to ₹ automatically.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <label>Invested Amount</label>
             <input

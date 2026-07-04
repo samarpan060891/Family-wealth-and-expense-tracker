@@ -37,6 +37,9 @@ const schema = z.object({
   maturityDate: z.string().optional(),
   expectedReturnRate: z.coerce.number().optional(),
   notes: z.string().optional(),
+  autoUpdate: z.boolean().default(false),
+  symbol: z.string().trim().max(40).optional(),
+  quantity: z.coerce.number().nonnegative().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -49,6 +52,10 @@ export async function POST(req: NextRequest) {
 
   const allowed = session.role === "admin" || (await canEdit(session, "investment", parsed.data.type));
   if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // If auto-update is on and we have a symbol + quantity, seed currentValue from
+  // quantity so it's sensible until the first price refresh runs.
+  const autoUpdate = parsed.data.autoUpdate && Boolean(parsed.data.symbol) && parsed.data.quantity != null;
 
   const db = await getDb();
   const [row] = await db
@@ -64,6 +71,9 @@ export async function POST(req: NextRequest) {
       maturityDate: parsed.data.maturityDate || null,
       expectedReturnRate: parsed.data.expectedReturnRate?.toString(),
       notes: parsed.data.notes,
+      autoUpdate,
+      symbol: parsed.data.symbol || null,
+      quantity: parsed.data.quantity?.toString() ?? null,
     })
     .returning();
 
