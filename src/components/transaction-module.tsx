@@ -44,6 +44,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [savingCat, setSavingCat] = useState(false);
   const [displayCurrency, setDisplayCurrency] = useState(viewerCurrency);
   const [rates, setRates] = useState<Record<string, number>>({});
+  const [cards, setCards] = useState<{ id: string; nickname: string; last4: string | null }[]>([]);
   const [form, setForm] = useState({
     categoryId: "",
     amount: "",
@@ -52,6 +53,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     paymentMethod: "cash",
     note: "",
     isTransfer: false,
+    cardId: "",
     isRecurring: false,
     recurrenceFrequency: "one_time",
   });
@@ -73,6 +75,12 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
 
   useEffect(() => {
     load();
+    if (type === "expense") {
+      fetch("/api/cards")
+        .then((r) => r.json())
+        .then((d) => setCards(d.cards ?? []))
+        .catch(() => {});
+    }
   }, [type]);
 
   // Create a category on the fly from the Add form and select it.
@@ -113,6 +121,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       paymentMethod: "cash",
       note: "",
       isTransfer: false,
+      cardId: "",
       isRecurring: false,
       recurrenceFrequency: "one_time",
     });
@@ -160,7 +169,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, ...form }),
+        body: JSON.stringify({ type, ...form, cardId: form.cardId || null }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -427,6 +436,20 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
                 kept for your records but <b>excluded from spending totals</b>, so purchases you already logged on the card
                 aren&apos;t counted twice.
               </p>
+            </div>
+          )}
+          {type === "expense" && cards.length > 0 && (form.paymentMethod === "credit_card" || form.isTransfer) && (
+            <div>
+              <label>{form.isTransfer ? "Paying which card?" : "Which card?"}</label>
+              <select value={form.cardId} onChange={(e) => setForm({ ...form, cardId: e.target.value })}>
+                <option value="">— {form.isTransfer ? "Select card" : "Not linked"} —</option>
+                {cards.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nickname}
+                    {c.last4 ? ` •••• ${c.last4}` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           <div className="flex items-center gap-2">

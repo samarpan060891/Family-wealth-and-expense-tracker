@@ -9,7 +9,8 @@ export type ReminderKind =
   | "emi"
   | "insurance_premium"
   | "insurance_expiry"
-  | "investment_maturity";
+  | "investment_maturity"
+  | "card_payment";
 
 export type DueItem = {
   id: string; // synthetic: `${kind}:${sourceId}:${dueDate}`
@@ -70,12 +71,14 @@ type RecurringTx = { id: string; type: "income" | "expense"; amount: string; cur
 type Debt = { id: string; name: string; type: string; currency: string; emiAmount: string | null; emiDay: string | null; startDate: string; endDate: string | null };
 type Insurance = { id: string; name: string; type: string; currency: string; premiumAmount: string; premiumFrequency: string; startDate: string; expiryDate: string };
 type Investment = { id: string; name: string; type: string; currency: string; maturityDate: string | null; currentValue: string | null; investedAmount: string };
+type CardDue = { id: string; nickname: string; currency: string; dueDay: number | null; outstanding: number };
 
 export type ReminderSources = {
   transactions: RecurringTx[];
   debts: Debt[];
   insurances: Insurance[];
   investments: Investment[];
+  cards?: CardDue[];
   completed: Set<string>; // keys `${kind}:${sourceId}:${dueDate}`
   today?: Date;
 };
@@ -227,6 +230,26 @@ export function computeReminders(src: ReminderSources): DueItem[] {
       dueDate,
       status,
       actionLabel: "Mark handled",
+    }));
+    if (it) items.push(it);
+  }
+
+  // Credit-card bill payments — monthly on the card's due day, while a balance is owed.
+  for (const c of src.cards ?? []) {
+    if (!c.dueDay || c.dueDay < 1 || c.outstanding <= 0) continue;
+    const anchorDay = Math.min(c.dueDay, 28);
+    const anchor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), anchorDay));
+    const it = recurringItem("card_payment", c.id, anchor, "monthly", today, src.completed, (dueDate, status) => ({
+      id: `card_payment:${c.id}:${dueDate}`,
+      kind: "card_payment",
+      sourceId: c.id,
+      title: `${c.nickname} bill`,
+      subtitle: "Credit-card payment due",
+      amount: c.outstanding,
+      currency: c.currency,
+      dueDate,
+      status,
+      actionLabel: "Mark paid",
     }));
     if (it) items.push(it);
   }

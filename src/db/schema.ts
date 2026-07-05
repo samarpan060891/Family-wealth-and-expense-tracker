@@ -134,6 +134,8 @@ export const transactions = pgTable("transactions", {
   // A credit-card bill payment / account transfer: recorded for cashflow but
   // excluded from spending totals so card purchases aren't double-counted.
   isTransfer: boolean("is_transfer").notNull().default(false),
+  // Optional link to a saved credit card (a purchase on it, or a bill payment for it).
+  cardId: uuid("card_id"),
   date: date("date").notNull(),
   paymentMethod: paymentMethodEnum("payment_method")
     .notNull()
@@ -405,6 +407,27 @@ export const reminderCompletions = pgTable(
   },
   (t) => [primaryKey({ columns: [t.kind, t.sourceId, t.dueDate] })]
 );
+
+// Saved credit cards. Each card's outstanding is computed from linked transactions
+// (purchases add, bill-payment transfers subtract), so no balance is stored here.
+export const cards = pgTable("cards", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  createdById: uuid("created_by_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  nickname: varchar("nickname", { length: 80 }).notNull(),
+  bank: varchar("bank", { length: 80 }),
+  network: varchar("network", { length: 30 }), // Visa / Mastercard / Amex / RuPay
+  last4: varchar("last4", { length: 4 }),
+  creditLimit: numeric("credit_limit", { precision: 14, scale: 2 }),
+  currency: varchar("currency", { length: 3 }).notNull().default("INR"),
+  billingDay: integer("billing_day"), // statement generation day 1..31
+  dueDay: integer("due_day"), // payment due day 1..31
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // Cached FX rates: 1 unit of `base` = `rate` units of `quote`. Refreshed on demand.
 export const fxRates = pgTable(
