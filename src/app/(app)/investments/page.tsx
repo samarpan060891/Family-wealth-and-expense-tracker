@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { useToast } from "@/components/toast";
+import { useCurrencyCtx } from "@/components/currency-context";
+import { CurrencySelect } from "@/components/currency-select";
+import { convertWith } from "@/lib/fx-convert";
 import { InvestmentImport } from "@/components/investment-import";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { useDocumentScan } from "@/components/use-document-scan";
@@ -24,6 +27,7 @@ type Investment = {
   symbol: string | null;
   quantity: string | null;
   lastPricedAt: string | null;
+  currency: string;
 };
 
 const EMPTY_FORM = {
@@ -38,6 +42,7 @@ const EMPTY_FORM = {
   autoUpdate: false,
   symbol: "",
   quantity: "",
+  currency: "INR",
 };
 
 // Investment types whose value tracks a live market price.
@@ -45,6 +50,9 @@ const MARKET_TYPES = new Set(["Mutual Fund", "Stocks", "ETF", "Gold", "Bonds", "
 
 export default function InvestmentsPage() {
   const { success, error: toastError } = useToast();
+  const { displayCurrency: viewerCurrency, defaultCurrency } = useCurrencyCtx();
+  const [displayCurrency, setDisplayCurrency] = useState(viewerCurrency);
+  const [rates, setRates] = useState<Record<string, number>>({});
   const [items, setItems] = useState<Investment[]>([]);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -69,13 +77,15 @@ export default function InvestmentsPage() {
   async function load() {
     const res = await fetch("/api/investments").then((r) => r.json());
     setItems(res.investments ?? []);
+    if (res.displayCurrency) setDisplayCurrency(res.displayCurrency);
+    if (res.rates) setRates(res.rates);
   }
   useEffect(() => {
     load();
   }, []);
 
   function resetForm() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     setEditId(null);
     reset();
   }
@@ -101,6 +111,7 @@ export default function InvestmentsPage() {
       autoUpdate: i.autoUpdate,
       symbol: i.symbol ?? "",
       quantity: i.quantity ?? "",
+      currency: i.currency ?? defaultCurrency,
     });
     setOpen(true);
   }
@@ -155,8 +166,9 @@ export default function InvestmentsPage() {
 
   const hasAuto = items.some((i) => i.autoUpdate);
 
-  const totalInvested = items.reduce((s, i) => s + Number(i.investedAmount), 0);
-  const totalCurrent = items.reduce((s, i) => s + Number(i.currentValue ?? i.investedAmount), 0);
+  // Totals convert each holding from its own currency to the viewer's display currency.
+  const totalInvested = items.reduce((s, i) => s + convertWith(Number(i.investedAmount), i.currency, rates), 0);
+  const totalCurrent = items.reduce((s, i) => s + convertWith(Number(i.currentValue ?? i.investedAmount), i.currency, rates), 0);
   const gain = totalCurrent - totalInvested;
 
   return (
@@ -178,11 +190,11 @@ export default function InvestmentsPage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
-        <StatCard label="Total Invested" value={fmtCurrency(totalInvested)} tone="accent" icon="◈" />
-        <StatCard label="Current Value" value={fmtCurrency(totalCurrent)} tone="green" icon="◆" />
+        <StatCard label="Total Invested" value={fmtCurrency(totalInvested, displayCurrency)} tone="accent" icon="◈" />
+        <StatCard label="Current Value" value={fmtCurrency(totalCurrent, displayCurrency)} tone="green" icon="◆" />
         <StatCard
           label="Unrealized Gain"
-          value={`${gain >= 0 ? "+" : ""}${fmtCurrency(gain)}`}
+          value={`${gain >= 0 ? "+" : ""}${fmtCurrency(gain, displayCurrency)}`}
           tone={gain >= 0 ? "green" : "red"}
           icon={gain >= 0 ? "▴" : "▾"}
           className="col-span-2 lg:col-span-1"
@@ -219,7 +231,7 @@ export default function InvestmentsPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
                   <div className="font-mono text-sm font-semibold text-green">
-                    {fmtCurrency(Number(i.currentValue ?? i.investedAmount))}
+                    {fmtCurrency(Number(i.currentValue ?? i.investedAmount), i.currency)}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => openEdit(i)} className="text-xs text-accent hover:text-accent-soft transition-colors">
@@ -302,13 +314,17 @@ export default function InvestmentsPage() {
           )}
           <div>
             <label>Invested Amount</label>
-            <input
-              type="number"
-              required
-              min="0"
-              value={form.investedAmount}
-              onChange={(e) => setForm({ ...form, investedAmount: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                required
+                min="0"
+                value={form.investedAmount}
+                onChange={(e) => setForm({ ...form, investedAmount: e.target.value })}
+                className="flex-1"
+              />
+              <CurrencySelect value={form.currency} onChange={(c) => setForm({ ...form, currency: c })} />
+            </div>
           </div>
           <div>
             <label>Current Value (optional)</label>

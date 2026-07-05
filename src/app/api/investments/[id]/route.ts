@@ -19,6 +19,7 @@ const patchSchema = z.object({
   autoUpdate: z.boolean().optional(),
   symbol: z.string().trim().max(40).nullable().optional(),
   quantity: z.coerce.number().nonnegative().nullable().optional(),
+  currency: z.string().length(3).optional(),
 });
 
 export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/investments/[id]">) {
@@ -57,6 +58,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/investment
         ...(d.autoUpdate !== undefined ? { autoUpdate: d.autoUpdate } : {}),
         ...(d.symbol !== undefined ? { symbol: d.symbol || null } : {}),
         ...(d.quantity !== undefined ? { quantity: d.quantity?.toString() ?? null } : {}),
+        ...(d.currency !== undefined ? { currency: d.currency } : {}),
       })
       .where(and(eq(investments.id, id), eq(investments.householdId, session.householdId)))
       .returning();

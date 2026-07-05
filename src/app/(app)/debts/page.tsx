@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
+import { useCurrencyCtx } from "@/components/currency-context";
+import { CurrencySelect } from "@/components/currency-select";
+import { convertWith } from "@/lib/fx-convert";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { useDocumentScan } from "@/components/use-document-scan";
 import { DocumentScanField } from "@/components/document-scan-field";
@@ -14,6 +17,7 @@ type Debt = {
   name: string;
   lender: string | null;
   type: string;
+  currency: string;
   principal: string;
   outstandingAmount: string;
   interestRate: string | null;
@@ -33,14 +37,18 @@ const EMPTY_FORM = {
   startDate: new Date().toISOString().slice(0, 10),
   endDate: "",
   notes: "",
+  currency: "INR",
 };
 
 export default function DebtsPage() {
+  const { displayCurrency: viewerCurrency, defaultCurrency } = useCurrencyCtx();
+  const [displayCurrency, setDisplayCurrency] = useState(viewerCurrency);
+  const [rates, setRates] = useState<Record<string, number>>({});
   const [items, setItems] = useState<Debt[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState({ ...EMPTY_FORM, currency: defaultCurrency });
   const [amortizationDebtId, setAmortizationDebtId] = useState<string | null>(null);
   const matchType = (t: string | null | undefined) =>
     (t && DEBT_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
@@ -60,13 +68,15 @@ export default function DebtsPage() {
   async function load() {
     const res = await fetch("/api/debts").then((r) => r.json());
     setItems(res.debts ?? []);
+    if (res.displayCurrency) setDisplayCurrency(res.displayCurrency);
+    if (res.rates) setRates(res.rates);
   }
   useEffect(() => {
     load();
   }, []);
 
   function resetForm() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     reset();
   }
 
@@ -98,16 +108,16 @@ export default function DebtsPage() {
     load();
   }
 
-  const totalOutstanding = items.reduce((s, i) => s + Number(i.outstandingAmount), 0);
-  const totalEmi = items.reduce((s, i) => s + Number(i.emiAmount ?? 0), 0);
+  const totalOutstanding = items.reduce((s, i) => s + convertWith(Number(i.outstandingAmount), i.currency, rates), 0);
+  const totalEmi = items.reduce((s, i) => s + convertWith(Number(i.emiAmount ?? 0), i.currency, rates), 0);
 
   return (
     <div className="flex flex-col gap-5 stagger">
       <PageHeader title="Debts / Loans" sub={`${items.length} accounts`} action={<Button onClick={() => setOpen(true)}>+ Add</Button>} />
 
       <div className="grid grid-cols-2 gap-3 lg:gap-4">
-        <StatCard label="Total Outstanding" value={fmtCurrency(totalOutstanding)} tone="red" icon="◇" />
-        <StatCard label="Monthly EMI" value={fmtCurrency(totalEmi)} tone="blue" icon="▾" />
+        <StatCard label="Total Outstanding" value={fmtCurrency(totalOutstanding, displayCurrency)} tone="red" icon="◇" />
+        <StatCard label="Monthly EMI" value={fmtCurrency(totalEmi, displayCurrency)} tone="blue" icon="▾" />
       </div>
 
       <Card>
@@ -122,7 +132,7 @@ export default function DebtsPage() {
                   <div className="text-xs text-muted mt-0.5">
                     {i.type} {i.lender ? `· ${i.lender}` : ""}
                     {i.endDate ? ` · Closes ${i.endDate}` : ""}
-                    {i.emiAmount ? ` · EMI ${fmtCurrency(Number(i.emiAmount))}` : ""}
+                    {i.emiAmount ? ` · EMI ${fmtCurrency(Number(i.emiAmount), i.currency)}` : ""}
                   </div>
                   <div className="mt-1.5 flex items-center gap-3 flex-wrap">
                     <RowAttachments module="debt" recordId={i.id} label={i.name} />
@@ -137,7 +147,7 @@ export default function DebtsPage() {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
-                  <div className="font-mono text-sm font-semibold text-red">{fmtCurrency(Number(i.outstandingAmount))}</div>
+                  <div className="font-mono text-sm font-semibold text-red">{fmtCurrency(Number(i.outstandingAmount), i.currency)}</div>
                   <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                     Delete
                   </button>
@@ -177,13 +187,17 @@ export default function DebtsPage() {
           </div>
           <div>
             <label>Principal Amount</label>
-            <input
-              type="number"
-              required
-              min="0"
-              value={form.principal}
-              onChange={(e) => setForm({ ...form, principal: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                required
+                min="0"
+                value={form.principal}
+                onChange={(e) => setForm({ ...form, principal: e.target.value })}
+                className="flex-1"
+              />
+              <CurrencySelect value={form.currency} onChange={(c) => setForm({ ...form, currency: c })} />
+            </div>
           </div>
           <div>
             <label>Outstanding Amount</label>

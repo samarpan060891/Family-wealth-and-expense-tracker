@@ -5,6 +5,8 @@ import { getDb } from "@/db";
 import { investments } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { getCategoryFilter, canEdit } from "@/lib/permissions";
+import { displayWithRates, getDisplayCurrency } from "@/lib/display";
+import { isSupportedCurrency } from "@/lib/currency";
 
 export async function GET() {
   const session = await getSession();
@@ -17,15 +19,17 @@ export async function GET() {
     .where(eq(investments.householdId, session.householdId))
     .orderBy(desc(investments.purchaseDate));
 
-  if (session.role === "admin") return NextResponse.json({ investments: rows });
-
-  const filter = await getCategoryFilter(session, "investment");
-  const visible = rows.filter((r) => {
-    if (filter === "none") return false;
-    if (filter === "all") return true;
-    return filter.categories.includes(r.type);
-  });
-  return NextResponse.json({ investments: visible });
+  let visible = rows;
+  if (session.role !== "admin") {
+    const filter = await getCategoryFilter(session, "investment");
+    visible = rows.filter((r) => {
+      if (filter === "none") return false;
+      if (filter === "all") return true;
+      return filter.categories.includes(r.type);
+    });
+  }
+  const { displayCurrency, rates } = await displayWithRates(session, visible.map((r) => r.currency));
+  return NextResponse.json({ investments: visible, displayCurrency, rates });
 }
 
 const schema = z.object({
@@ -40,6 +44,7 @@ const schema = z.object({
   autoUpdate: z.boolean().default(false),
   symbol: z.string().trim().max(40).optional(),
   quantity: z.coerce.number().nonnegative().optional(),
+  currency: z.string().length(3).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -57,6 +62,10 @@ export async function POST(req: NextRequest) {
   // quantity so it's sensible until the first price refresh runs.
   const autoUpdate = parsed.data.autoUpdate && Boolean(parsed.data.symbol) && parsed.data.quantity != null;
 
+  const { base } = await getDisplayCurrency(session);
+  const currency =
+    parsed.data.currency && isSupportedCurrency(parsed.data.currency) ? parsed.data.currency : base;
+
   const db = await getDb();
   const [row] = await db
     .insert(investments)
@@ -65,6 +74,7 @@ export async function POST(req: NextRequest) {
       createdById: session.userId,
       name: parsed.data.name,
       type: parsed.data.type,
+      currency,
       investedAmount: parsed.data.investedAmount.toString(),
       currentValue: parsed.data.currentValue?.toString(),
       purchaseDate: parsed.data.purchaseDate,

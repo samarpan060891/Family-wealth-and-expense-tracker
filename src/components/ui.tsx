@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, InputHTMLAttributes } from "react";
+import { formatMoney } from "@/lib/currency";
 
 export function Card({
   children,
@@ -94,12 +95,9 @@ export function EmptyState({ title, sub, icon }: { title: string; sub?: string; 
   );
 }
 
-export function fmtCurrency(n: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(n);
+// Format money in a given currency (defaults to INR for backward compatibility).
+export function fmtCurrency(n: number, currency: string = "INR") {
+  return formatMoney(n, currency);
 }
 
 export function PageHeader({

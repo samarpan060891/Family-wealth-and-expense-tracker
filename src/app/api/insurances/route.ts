@@ -5,6 +5,8 @@ import { getDb } from "@/db";
 import { insurances } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { getCategoryFilter, canEdit } from "@/lib/permissions";
+import { displayWithRates, getDisplayCurrency } from "@/lib/display";
+import { isSupportedCurrency } from "@/lib/currency";
 
 export async function GET() {
   const session = await getSession();
@@ -17,15 +19,17 @@ export async function GET() {
     .where(eq(insurances.householdId, session.householdId))
     .orderBy(desc(insurances.expiryDate));
 
-  if (session.role === "admin") return NextResponse.json({ insurances: rows });
-
-  const filter = await getCategoryFilter(session, "insurance");
-  const visible = rows.filter((r) => {
-    if (filter === "none") return false;
-    if (filter === "all") return true;
-    return filter.categories.includes(r.type);
-  });
-  return NextResponse.json({ insurances: visible });
+  let visible = rows;
+  if (session.role !== "admin") {
+    const filter = await getCategoryFilter(session, "insurance");
+    visible = rows.filter((r) => {
+      if (filter === "none") return false;
+      if (filter === "all") return true;
+      return filter.categories.includes(r.type);
+    });
+  }
+  const { displayCurrency, rates } = await displayWithRates(session, visible.map((r) => r.currency));
+  return NextResponse.json({ insurances: visible, displayCurrency, rates });
 }
 
 const schema = z.object({
@@ -34,6 +38,7 @@ const schema = z.object({
   provider: z.string().optional(),
   policyNumber: z.string().optional(),
   premiumAmount: z.coerce.number().nonnegative(),
+  currency: z.string().length(3).optional(),
   premiumFrequency: z.enum(["one_time", "monthly", "quarterly", "half_yearly", "yearly"]),
   startDate: z.string(),
   expiryDate: z.string(),
@@ -57,6 +62,10 @@ export async function POST(req: NextRequest) {
   const allowed = session.role === "admin" || (await canEdit(session, "insurance", parsed.data.type));
   if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const { base } = await getDisplayCurrency(session);
+  const currency =
+    parsed.data.currency && isSupportedCurrency(parsed.data.currency) ? parsed.data.currency : base;
+
   const db = await getDb();
   const [row] = await db
     .insert(insurances)
@@ -67,6 +76,7 @@ export async function POST(req: NextRequest) {
       type: parsed.data.type,
       provider: parsed.data.provider,
       policyNumber: parsed.data.policyNumber,
+      currency,
       premiumAmount: parsed.data.premiumAmount.toString(),
       premiumFrequency: parsed.data.premiumFrequency,
       startDate: parsed.data.startDate,

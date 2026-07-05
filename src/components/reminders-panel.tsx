@@ -10,6 +10,7 @@ type DueItem = {
   title: string;
   subtitle: string;
   amount: number | null;
+  currency: string;
   dueDate: string;
   status: "overdue" | "due_soon" | "upcoming";
   actionLabel: string;
@@ -127,7 +128,7 @@ export function RemindersPanel({
                 </div>
                 <div className="text-xs text-muted mt-0.5">
                   {it.subtitle} · {dueLabel(it.dueDate)}
-                  {it.amount != null ? ` · ${fmtCurrency(it.amount)}` : ""}
+                  {it.amount != null ? ` · ${fmtCurrency(it.amount, it.currency)}` : ""}
                 </div>
               </div>
               <button

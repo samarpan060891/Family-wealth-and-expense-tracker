@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, fmtCurrency } from "@/components/ui";
 import { useToast } from "@/components/toast";
+import { useCurrencyCtx } from "@/components/currency-context";
+import { CurrencySelect } from "@/components/currency-select";
+import { convertWith } from "@/lib/fx-convert";
 import { PAYMENT_METHODS, FREQUENCIES } from "@/lib/categories";
 import { uploadAttachment, scanDocument } from "@/components/attachment-uploader";
 import { DocumentScanField } from "@/components/document-scan-field";
@@ -12,6 +15,7 @@ type Category = { id: string; name: string };
 type Tx = {
   id: string;
   amount: string;
+  currency: string;
   date: string;
   paymentMethod: string;
   note: string | null;
@@ -23,6 +27,7 @@ type Tx = {
 
 export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const { success, error: toastError } = useToast();
+  const { displayCurrency: viewerCurrency, defaultCurrency } = useCurrencyCtx();
   const [items, setItems] = useState<Tx[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,9 +41,12 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [addingCat, setAddingCat] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [savingCat, setSavingCat] = useState(false);
+  const [displayCurrency, setDisplayCurrency] = useState(viewerCurrency);
+  const [rates, setRates] = useState<Record<string, number>>({});
   const [form, setForm] = useState({
     categoryId: "",
     amount: "",
+    currency: defaultCurrency,
     date: new Date().toISOString().slice(0, 10),
     paymentMethod: "cash",
     note: "",
@@ -54,6 +62,8 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       ]);
       setItems(txRes.transactions ?? []);
       setCategories(catRes.categories ?? []);
+      if (txRes.displayCurrency) setDisplayCurrency(txRes.displayCurrency);
+      if (txRes.rates) setRates(txRes.rates);
     } finally {
       setLoading(false);
     }
@@ -96,6 +106,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     setForm({
       categoryId: "",
       amount: "",
+      currency: defaultCurrency,
       date: new Date().toISOString().slice(0, 10),
       paymentMethod: "cash",
       note: "",
@@ -180,7 +191,9 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
 
   const months = Array.from(new Set(items.map((i) => i.date.slice(0, 7)))).sort().reverse();
   const filtered = monthFilter ? items.filter((i) => i.date.startsWith(monthFilter)) : items;
-  const total = filtered.reduce((s, i) => s + Number(i.amount), 0);
+  // Total is in the viewer's display currency, converting each entry from its own.
+  const total = filtered.reduce((s, i) => s + convertWith(Number(i.amount), i.currency, rates), 0);
+  const mixedCurrencies = new Set(filtered.map((i) => i.currency)).size > 1;
 
   const label = type === "expense" ? "Expense" : "Income";
   const tone = type === "expense" ? "text-red" : "text-green";
@@ -211,7 +224,10 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
             ))}
           </select>
         </div>
-        <div className={`text-3xl font-bold font-mono ${tone}`}>{fmtCurrency(total)}</div>
+        <div className={`text-3xl font-bold font-mono ${tone}`}>{fmtCurrency(total, displayCurrency)}</div>
+        {mixedCurrencies && (
+          <div className="text-[11px] text-muted-soft mt-1">Converted to {displayCurrency} at current rates</div>
+        )}
       </Card>
 
       <Card>
@@ -249,7 +265,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
-                  <div className={`font-mono text-sm font-semibold ${tone}`}>{fmtCurrency(Number(tx.amount))}</div>
+                  <div className={`font-mono text-sm font-semibold ${tone}`}>{fmtCurrency(Number(tx.amount), tx.currency)}</div>
                   <button onClick={() => onDelete(tx.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                     Delete
                   </button>
@@ -339,14 +355,18 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
           </div>
           <div>
             <label>Amount</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              required
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                className="flex-1"
+              />
+              <CurrencySelect value={form.currency} onChange={(c) => setForm({ ...form, currency: c })} />
+            </div>
           </div>
           <div>
             <label>Date</label>

@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
+import { useCurrencyCtx } from "@/components/currency-context";
+import { CurrencySelect } from "@/components/currency-select";
+import { convertWith } from "@/lib/fx-convert";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { useDocumentScan } from "@/components/use-document-scan";
 import { DocumentScanField } from "@/components/document-scan-field";
@@ -13,6 +16,7 @@ type Insurance = {
   id: string;
   name: string;
   type: string;
+  currency: string;
   provider: string | null;
   policyNumber: string | null;
   premiumAmount: string;
@@ -51,15 +55,19 @@ const EMPTY_FORM = {
   agentName: "",
   agentPhone: "",
   notes: "",
+  currency: "INR",
 };
 
 export default function InsurancePage() {
+  const { displayCurrency: viewerCurrency, defaultCurrency } = useCurrencyCtx();
+  const [displayCurrency, setDisplayCurrency] = useState(viewerCurrency);
+  const [rates, setRates] = useState<Record<string, number>>({});
   const [items, setItems] = useState<Insurance[]>([]);
   const [country, setCountry] = useState("India");
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState({ ...EMPTY_FORM, currency: defaultCurrency });
   const matchType = (t: string | null | undefined) =>
     (t && INSURANCE_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
   const { file, scanning, scanNote, onFilePicked, reset } = useDocumentScan("insurance", (f) =>
@@ -87,6 +95,8 @@ export default function InsurancePage() {
       fetch("/api/settings").then((r) => r.json()),
     ]);
     setItems(insRes.insurances ?? []);
+    if (insRes.displayCurrency) setDisplayCurrency(insRes.displayCurrency);
+    if (insRes.rates) setRates(insRes.rates);
     if (setRes.settings?.country) setCountry(setRes.settings.country);
   }
   useEffect(() => {
@@ -94,7 +104,7 @@ export default function InsurancePage() {
   }, []);
 
   function resetForm() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     reset();
   }
 
@@ -126,8 +136,8 @@ export default function InsurancePage() {
     load();
   }
 
-  const totalPremium = items.reduce((s, i) => s + Number(i.premiumAmount), 0);
-  const totalCover = items.reduce((s, i) => s + Number(i.sumAssured ?? 0), 0);
+  const totalPremium = items.reduce((s, i) => s + convertWith(Number(i.premiumAmount), i.currency, rates), 0);
+  const totalCover = items.reduce((s, i) => s + convertWith(Number(i.sumAssured ?? 0), i.currency, rates), 0);
   const withContacts = items.filter(
     (i) => i.claimHelpline || i.insurerHelpline || i.agentPhone
   );
@@ -138,8 +148,8 @@ export default function InsurancePage() {
       <PageHeader title="Insurance" sub={`${items.length} policies`} action={<Button onClick={() => setOpen(true)}>+ Add</Button>} />
 
       <div className="grid grid-cols-2 gap-3 lg:gap-4">
-        <StatCard label="Total Sum Assured" value={fmtCurrency(totalCover)} tone="accent" icon="◉" />
-        <StatCard label="Total Premiums / yr-equiv" value={fmtCurrency(totalPremium)} tone="purple" icon="◐" />
+        <StatCard label="Total Sum Assured" value={fmtCurrency(totalCover, displayCurrency)} tone="accent" icon="◉" />
+        <StatCard label="Total Premiums / yr-equiv" value={fmtCurrency(totalPremium, displayCurrency)} tone="purple" icon="◐" />
       </div>
 
       {/* EMERGENCY CONTACTS & HELPLINES */}
@@ -232,7 +242,7 @@ export default function InsurancePage() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
-                    <div className="font-mono text-sm font-semibold">{fmtCurrency(Number(i.premiumAmount))}</div>
+                    <div className="font-mono text-sm font-semibold">{fmtCurrency(Number(i.premiumAmount), i.currency)}</div>
                     <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                       Delete
                     </button>
@@ -284,13 +294,17 @@ export default function InsurancePage() {
           </div>
           <div>
             <label>Premium Amount</label>
-            <input
-              type="number"
-              required
-              min="0"
-              value={form.premiumAmount}
-              onChange={(e) => setForm({ ...form, premiumAmount: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                required
+                min="0"
+                value={form.premiumAmount}
+                onChange={(e) => setForm({ ...form, premiumAmount: e.target.value })}
+                className="flex-1"
+              />
+              <CurrencySelect value={form.currency} onChange={(c) => setForm({ ...form, currency: c })} />
+            </div>
           </div>
           <div>
             <label>Premium Frequency</label>

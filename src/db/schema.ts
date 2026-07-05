@@ -53,6 +53,8 @@ export const relationEnum = pgEnum("relation_type", [
 export const households = pgTable("households", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 120 }).notNull(),
+  // Currency new records default to and household-wide snapshots are stored in.
+  defaultCurrency: varchar("default_currency", { length: 3 }).notNull().default("INR"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -65,6 +67,8 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 200 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("member"),
+  // The currency this user prefers to see totals in (null = use household default).
+  displayCurrency: varchar("display_currency", { length: 3 }),
   // App Lock: an optional local re-auth gate on top of the login session.
   appLockEnabled: boolean("app_lock_enabled").notNull().default(false),
   pinHash: text("pin_hash"), // bcrypt hash of the 4-digit PIN; never stored in plain text
@@ -126,6 +130,7 @@ export const transactions = pgTable("transactions", {
     onDelete: "set null",
   }),
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull().default("INR"),
   date: date("date").notNull(),
   paymentMethod: paymentMethodEnum("payment_method")
     .notNull()
@@ -149,6 +154,7 @@ export const investments = pgTable("investments", {
   name: varchar("name", { length: 150 }).notNull(),
   type: varchar("type", { length: 80 }).notNull(),
   investedAmount: numeric("invested_amount", { precision: 14, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull().default("INR"),
   currentValue: numeric("current_value", { precision: 14, scale: 2 }),
   purchaseDate: date("purchase_date").notNull(),
   maturityDate: date("maturity_date"),
@@ -179,6 +185,7 @@ export const debts = pgTable("debts", {
   type: varchar("type", { length: 80 }).notNull(),
   principal: numeric("principal", { precision: 14, scale: 2 }).notNull(),
   outstandingAmount: numeric("outstanding_amount", { precision: 14, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull().default("INR"),
   interestRate: numeric("interest_rate", { precision: 5, scale: 2 }),
   emiAmount: numeric("emi_amount", { precision: 14, scale: 2 }),
   emiDay: numeric("emi_day", { precision: 2, scale: 0 }),
@@ -199,6 +206,7 @@ export const assets = pgTable("assets", {
   name: varchar("name", { length: 150 }).notNull(),
   type: varchar("type", { length: 80 }).notNull(),
   value: numeric("value", { precision: 14, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull().default("INR"),
   purchaseDate: date("purchase_date"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -217,6 +225,7 @@ export const insurances = pgTable("insurances", {
   provider: varchar("provider", { length: 150 }),
   policyNumber: varchar("policy_number", { length: 100 }),
   premiumAmount: numeric("premium_amount", { precision: 14, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull().default("INR"),
   premiumFrequency: frequencyEnum("premium_frequency").notNull().default("yearly"),
   startDate: date("start_date").notNull(),
   expiryDate: date("expiry_date").notNull(),
@@ -392,6 +401,18 @@ export const reminderCompletions = pgTable(
     completedAt: timestamp("completed_at").defaultNow().notNull(),
   },
   (t) => [primaryKey({ columns: [t.kind, t.sourceId, t.dueDate] })]
+);
+
+// Cached FX rates: 1 unit of `base` = `rate` units of `quote`. Refreshed on demand.
+export const fxRates = pgTable(
+  "fx_rates",
+  {
+    base: varchar("base", { length: 3 }).notNull(),
+    quote: varchar("quote", { length: 3 }).notNull(),
+    rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),
+    fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.base, t.quote] })]
 );
 
 export const householdsRelations = relations(households, ({ many }) => ({

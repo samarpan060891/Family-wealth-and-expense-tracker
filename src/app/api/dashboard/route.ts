@@ -5,6 +5,8 @@ import { transactions, categories, debts, insurances, investments, assets, netWo
 import { getSession } from "@/lib/auth";
 import { getCategoryFilter } from "@/lib/permissions";
 import { buildCashflowProjection, upcomingExpiries } from "@/lib/cashflow";
+import { getDisplayCurrency } from "@/lib/display";
+import { ratesTo } from "@/lib/fx";
 import { format, parseISO } from "date-fns";
 
 export async function GET() {
@@ -19,6 +21,7 @@ export async function GET() {
         id: transactions.id,
         type: transactions.type,
         amount: transactions.amount,
+        currency: transactions.currency,
         date: transactions.date,
         isRecurring: transactions.isRecurring,
         recurrenceFrequency: transactions.recurrenceFrequency,
@@ -72,12 +75,23 @@ export async function GET() {
     visibleAssets = assetRows.filter((a) => matches(assetFilter, a.type));
   }
 
+  // Everything on the dashboard is shown in the viewer's display currency; convert
+  // each record from its own currency using current FX rates.
+  const { display: displayCurrency, base } = await getDisplayCurrency(session);
+  const currencies = new Set<string>([base, displayCurrency]);
+  for (const t of visibleTx) currencies.add(t.currency);
+  for (const i of visibleInvestments) currencies.add(i.currency);
+  for (const a of visibleAssets) currencies.add(a.currency);
+  for (const d of visibleDebts) currencies.add(d.currency);
+  const rates = await ratesTo(displayCurrency, currencies);
+  const cv = (amount: number, currency: string) => amount * (rates[currency] ?? 1);
+
   // Monthly trend: last 12 months income vs expense
   const monthlyTotals: Record<string, { income: number; expense: number }> = {};
   for (const t of visibleTx) {
     const key = format(parseISO(t.date), "MMM yyyy");
     monthlyTotals[key] ??= { income: 0, expense: 0 };
-    monthlyTotals[key][t.type as "income" | "expense"] += Number(t.amount);
+    monthlyTotals[key][t.type as "income" | "expense"] += cv(Number(t.amount), t.currency);
   }
 
   const currentMonthKey = format(new Date(), "yyyy-MM");
@@ -86,18 +100,19 @@ export async function GET() {
     if (t.type !== "expense") continue;
     if (!t.date.startsWith(currentMonthKey)) continue;
     const name = t.categoryName ?? "Uncategorized";
-    categoryBreakdown[name] = (categoryBreakdown[name] ?? 0) + Number(t.amount);
+    categoryBreakdown[name] = (categoryBreakdown[name] ?? 0) + cv(Number(t.amount), t.currency);
   }
 
   const netWorth =
-    visibleInvestments.reduce((s, i) => s + Number(i.currentValue ?? i.investedAmount), 0) +
-    visibleAssets.reduce((s, a) => s + Number(a.value), 0) -
-    visibleDebts.reduce((s, d) => s + Number(d.outstandingAmount), 0);
+    visibleInvestments.reduce((s, i) => s + cv(Number(i.currentValue ?? i.investedAmount), i.currency), 0) +
+    visibleAssets.reduce((s, a) => s + cv(Number(a.value), a.currency), 0) -
+    visibleDebts.reduce((s, d) => s + cv(Number(d.outstandingAmount), d.currency), 0);
 
   // Net worth trend from recorded daily snapshots. Fall back to a single point at
   // today's value so a brand-new household still shows a sensible chart.
+  // Snapshots are stored in the household base currency; convert to display.
   const netWorthTrend = snapRows
-    .map((s) => ({ date: s.date, netWorth: Number(s.netWorth) }))
+    .map((s) => ({ date: s.date, netWorth: cv(Number(s.netWorth), base) }))
     .sort((a, b) => a.date.localeCompare(b.date));
   const todayIso = format(new Date(), "yyyy-MM-dd");
   if (!netWorthTrend.some((p) => p.date === todayIso)) {
@@ -107,7 +122,7 @@ export async function GET() {
   // This month's savings rate = (income − expense) / income.
   const thisMonthIncome = visibleTx
     .filter((t) => t.type === "income" && t.date.startsWith(currentMonthKey))
-    .reduce((s, t) => s + Number(t.amount), 0);
+    .reduce((s, t) => s + cv(Number(t.amount), t.currency), 0);
   const thisMonthExpense = Object.values(categoryBreakdown).reduce((s, v) => s + v, 0);
   const savingsRate = thisMonthIncome > 0 ? (thisMonthIncome - thisMonthExpense) / thisMonthIncome : null;
 
@@ -118,23 +133,24 @@ export async function GET() {
     .map((t) => ({
       id: t.id,
       type: t.type as "income" | "expense",
-      amount: Number(t.amount),
+      amount: cv(Number(t.amount), t.currency),
       date: t.date,
       category: t.categoryName ?? "Uncategorized",
       paymentMethod: t.paymentMethod,
       note: t.note,
     }));
 
+  // Cashflow projection also in display currency: convert amounts before projecting.
   const cashflowProjection = buildCashflowProjection(
     visibleTx.map((t) => ({
       type: t.type as "income" | "expense",
-      amount: t.amount,
+      amount: cv(Number(t.amount), t.currency).toString(),
       date: t.date,
       isRecurring: t.isRecurring,
       recurrenceFrequency: t.recurrenceFrequency,
     })),
-    visibleDebts,
-    visibleInsurances
+    visibleDebts.map((d) => ({ ...d, emiAmount: d.emiAmount != null ? cv(Number(d.emiAmount), d.currency).toString() : d.emiAmount })),
+    visibleInsurances.map((i) => ({ ...i, premiumAmount: cv(Number(i.premiumAmount), i.currency).toString() }))
   );
 
   const expiringInsurances = upcomingExpiries(visibleInsurances, "expiryDate").map((i) => ({
@@ -169,10 +185,11 @@ export async function GET() {
     savingsRate,
     thisMonthIncome,
     recentTransactions,
+    displayCurrency,
     totals: {
-      investments: visibleInvestments.reduce((s, i) => s + Number(i.currentValue ?? i.investedAmount), 0),
-      assets: visibleAssets.reduce((s, a) => s + Number(a.value), 0),
-      debts: visibleDebts.reduce((s, d) => s + Number(d.outstandingAmount), 0),
+      investments: visibleInvestments.reduce((s, i) => s + cv(Number(i.currentValue ?? i.investedAmount), i.currency), 0),
+      assets: visibleAssets.reduce((s, a) => s + cv(Number(a.value), a.currency), 0),
+      debts: visibleDebts.reduce((s, d) => s + cv(Number(d.outstandingAmount), d.currency), 0),
       thisMonthExpense,
     },
     cashflowProjection,

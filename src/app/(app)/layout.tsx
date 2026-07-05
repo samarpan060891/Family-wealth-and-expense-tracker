@@ -5,6 +5,8 @@ import { getDb } from "@/db";
 import { users, households, webauthnCredentials } from "@/db/schema";
 import { NavShell } from "@/components/nav-shell";
 import { AppLockGate } from "@/components/app-lock-gate";
+import { CurrencyProvider } from "@/components/currency-context";
+import { DEFAULT_CURRENCY } from "@/lib/currency";
 
 export default async function AppLayout({
   children,
@@ -26,11 +28,20 @@ export default async function AppLayout({
         .where(eq(webauthnCredentials.userId, session.userId))
     : [];
 
+  const defaultCurrency = household?.defaultCurrency ?? DEFAULT_CURRENCY;
+  const displayCurrency = user.displayCurrency ?? defaultCurrency;
+
   return (
     <AppLockGate enabled={user.appLockEnabled} hasBiometric={creds.length > 0}>
-      <NavShell userName={user.name} householdName={household?.name} isAdmin={user.role === "admin"}>
-        {children}
-      </NavShell>
+      <CurrencyProvider
+        displayCurrency={displayCurrency}
+        defaultCurrency={defaultCurrency}
+        isAdmin={user.role === "admin"}
+      >
+        <NavShell userName={user.name} householdName={household?.name} isAdmin={user.role === "admin"}>
+          {children}
+        </NavShell>
+      </CurrencyProvider>
     </AppLockGate>
   );
 }

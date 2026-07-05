@@ -7,6 +7,8 @@ import { getCategoryFilter } from "@/lib/permissions";
 import { computeInsights } from "@/lib/insights";
 import { summarizeFacts, isAiConfigured } from "@/lib/ai-summary";
 import { safeRoute, UNAUTHORIZED } from "@/lib/api";
+import { getDisplayCurrency } from "@/lib/display";
+import { ratesTo } from "@/lib/fx";
 
 export const maxDuration = 30;
 
@@ -21,6 +23,7 @@ export async function GET() {
         .select({
           type: transactions.type,
           amount: transactions.amount,
+          currency: transactions.currency,
           date: transactions.date,
           isRecurring: transactions.isRecurring,
           categoryName: categories.name,
@@ -56,9 +59,19 @@ export async function GET() {
       visibleAssets = assetRows.filter((a) => ok(assetF, a.type));
     }
 
-    const investTotal = visibleInv.reduce((s, i) => s + Number(i.currentValue ?? i.investedAmount), 0);
-    const assetTotal = visibleAssets.reduce((s, a) => s + Number(a.value), 0);
-    const debtTotal = visibleDebts.reduce((s, d) => s + Number(d.outstandingAmount), 0);
+    // Aggregate everything in the household base currency (snapshots + insights).
+    const { base } = await getDisplayCurrency(session);
+    const currencies = new Set<string>([base]);
+    for (const i of visibleInv) currencies.add(i.currency);
+    for (const a of visibleAssets) currencies.add(a.currency);
+    for (const d of visibleDebts) currencies.add(d.currency);
+    for (const t of visibleTx) currencies.add(t.currency);
+    const rates = await ratesTo(base, currencies);
+    const cv = (amount: number, currency: string) => amount * (rates[currency] ?? 1);
+
+    const investTotal = visibleInv.reduce((s, i) => s + cv(Number(i.currentValue ?? i.investedAmount), i.currency), 0);
+    const assetTotal = visibleAssets.reduce((s, a) => s + cv(Number(a.value), a.currency), 0);
+    const debtTotal = visibleDebts.reduce((s, d) => s + cv(Number(d.outstandingAmount), d.currency), 0);
     const netWorth = investTotal + assetTotal - debtTotal;
 
     // Record today's snapshot once per day (admins only, to keep it a whole-household figure).
@@ -83,13 +96,20 @@ export async function GET() {
     const result = computeInsights({
       transactions: visibleTx.map((t) => ({
         type: t.type as "expense" | "income",
-        amount: t.amount,
+        amount: cv(Number(t.amount), t.currency).toString(),
         date: t.date,
         isRecurring: t.isRecurring,
         categoryName: t.categoryName,
       })),
-      investments: visibleInv,
-      debts: visibleDebts,
+      investments: visibleInv.map((i) => ({
+        ...i,
+        investedAmount: cv(Number(i.investedAmount), i.currency).toString(),
+        currentValue: i.currentValue != null ? cv(Number(i.currentValue), i.currency).toString() : i.currentValue,
+      })),
+      debts: visibleDebts.map((d) => ({
+        ...d,
+        outstandingAmount: cv(Number(d.outstandingAmount), d.currency).toString(),
+      })),
       netWorth,
       snapshots: snapRows.map((s) => ({ date: s.date, netWorth: s.netWorth })),
       goals: goalRows.map((g) => ({

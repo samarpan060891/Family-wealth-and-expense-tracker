@@ -38,6 +38,7 @@ type Dashboard = {
   savingsRate: number | null;
   thisMonthIncome: number;
   recentTransactions: Tx[];
+  displayCurrency: string;
   totals: { investments: number; assets: number; debts: number; thisMonthExpense: number };
   cashflowProjection: { month: string; projectedIncome: number; projectedExpense: number; net: number; cumulative: number }[];
   upcomingExpiries: { id: string; name: string; type: string; expiryDate: string; kind: string }[];
@@ -113,6 +114,7 @@ export default function DashboardPage() {
   }
 
   const totalExpense = data.totals.thisMonthExpense;
+  const cur = data.displayCurrency ?? "INR";
 
   return (
     <div className="flex flex-col gap-6 stagger">
@@ -154,9 +156,9 @@ export default function DashboardPage() {
 
       {/* QUICK OVERVIEW CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <StatCard label="Net Worth" value={fmtCurrency(data.netWorth)} tone="accent" icon="◆" />
-        <StatCard label="Total Assets" value={fmtCurrency(data.totals.assets)} tone="green" icon="▣" />
-        <StatCard label="Total Debts" value={fmtCurrency(data.totals.debts)} tone="red" icon="◇" />
+        <StatCard label="Net Worth" value={fmtCurrency(data.netWorth, cur)} tone="accent" icon="◆" />
+        <StatCard label="Total Assets" value={fmtCurrency(data.totals.assets, cur)} tone="green" icon="▣" />
+        <StatCard label="Total Debts" value={fmtCurrency(data.totals.debts, cur)} tone="red" icon="◇" />
         <StatCard
           label="Savings Rate"
           value={data.savingsRate === null ? "—" : `${Math.round(data.savingsRate * 100)}%`}
@@ -203,11 +205,11 @@ export default function DashboardPage() {
                   axisLine={false}
                   tickLine={false}
                   width={64}
-                  tickFormatter={(v: number) => fmtCurrency(v).replace(/\.00$/, "")}
+                  tickFormatter={(v: number) => fmtCurrency(v, cur).replace(/\.00$/, "")}
                 />
                 <Tooltip
                   {...chartTooltip}
-                  formatter={(v) => [fmtCurrency(Number(v)), "Net Worth"]}
+                  formatter={(v) => [fmtCurrency(Number(v), cur), "Net Worth"]}
                   labelFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { dateStyle: "medium" })}
                 />
                 <Area type="monotone" dataKey="netWorth" stroke="#e8a33d" strokeWidth={2.5} fill="url(#nwFill)" />
@@ -230,7 +232,7 @@ export default function DashboardPage() {
                   <div className="font-semibold">{a.category}</div>
                   <div className="text-xs text-muted mt-0.5">{a.note}</div>
                 </div>
-                <div className="text-xs font-mono font-semibold text-red shrink-0 pl-3">{fmtCurrency(a.amount)}</div>
+                <div className="text-xs font-mono font-semibold text-red shrink-0 pl-3">{fmtCurrency(a.amount, cur)}</div>
               </div>
             ))}
           </div>
@@ -306,7 +308,7 @@ export default function DashboardPage() {
               <div className="flex items-baseline justify-between mb-3">
                 <span className="font-semibold">{drill}</span>
                 <span className="font-mono text-sm text-red">
-                  {fmtCurrency(sortedCategories.find((c) => c.name === drill)?.amount ?? 0)}
+                  {fmtCurrency(sortedCategories.find((c) => c.name === drill)?.amount ?? 0, cur)}
                 </span>
               </div>
               <div className="flex flex-col divide-y divide-border-soft max-h-72 overflow-y-auto">
@@ -319,7 +321,7 @@ export default function DashboardPage() {
                         <div className="text-xs text-muted">{t.date}</div>
                         {t.note && <div className="text-xs text-muted-soft truncate">{t.note}</div>}
                       </div>
-                      <div className="font-mono text-red shrink-0 pl-3">{fmtCurrency(t.amount)}</div>
+                      <div className="font-mono text-red shrink-0 pl-3">{fmtCurrency(t.amount, cur)}</div>
                     </div>
                   ))
                 )}
@@ -344,7 +346,7 @@ export default function DashboardPage() {
                         <Cell key={c.name} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="var(--surface)" strokeWidth={2} />
                       ))}
                     </Pie>
-                    <Tooltip {...chartTooltip} formatter={(v) => fmtCurrency(Number(v))} />
+                    <Tooltip {...chartTooltip} formatter={(v) => fmtCurrency(Number(v), cur)} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -394,7 +396,7 @@ export default function DashboardPage() {
       </div>
 
       {/* RECENT TRANSACTIONS with search/filter */}
-      <RecentTransactions transactions={data.recentTransactions} />
+      <RecentTransactions transactions={data.recentTransactions} currency={cur} />
 
       {/* CASHFLOW PROJECTION */}
       <Card>
@@ -421,7 +423,7 @@ export default function DashboardPage() {
   );
 }
 
-function RecentTransactions({ transactions }: { transactions: Tx[] }) {
+function RecentTransactions({ transactions, currency }: { transactions: Tx[]; currency: string }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "income" | "expense">("all");
 
@@ -490,7 +492,7 @@ function RecentTransactions({ transactions }: { transactions: Tx[] }) {
               </div>
               <div className={`font-mono text-sm font-semibold shrink-0 pl-3 ${t.type === "income" ? "text-green" : "text-red"}`}>
                 {t.type === "income" ? "+" : "−"}
-                {fmtCurrency(t.amount)}
+                {fmtCurrency(t.amount, currency)}
               </div>
             </div>
           ))}

@@ -5,6 +5,8 @@ import { getDb } from "@/db";
 import { transactions, categories } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { getCategoryFilter, canEdit } from "@/lib/permissions";
+import { displayWithRates, getDisplayCurrency } from "@/lib/display";
+import { isSupportedCurrency } from "@/lib/currency";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -18,6 +20,7 @@ export async function GET(req: NextRequest) {
       id: transactions.id,
       type: transactions.type,
       amount: transactions.amount,
+      currency: transactions.currency,
       date: transactions.date,
       paymentMethod: transactions.paymentMethod,
       note: transactions.note,
@@ -37,20 +40,20 @@ export async function GET(req: NextRequest) {
     )
     .orderBy(desc(transactions.date));
 
-  if (session.role === "admin") {
-    return NextResponse.json({ transactions: rows });
+  let visible = rows;
+  if (session.role !== "admin") {
+    const expenseFilter = await getCategoryFilter(session, "expense");
+    const incomeFilter = await getCategoryFilter(session, "income");
+    visible = rows.filter((r) => {
+      const filter = r.type === "expense" ? expenseFilter : incomeFilter;
+      if (filter === "none") return false;
+      if (filter === "all") return true;
+      return r.categoryName ? filter.categories.includes(r.categoryName) : false;
+    });
   }
 
-  const expenseFilter = await getCategoryFilter(session, "expense");
-  const incomeFilter = await getCategoryFilter(session, "income");
-  const visible = rows.filter((r) => {
-    const filter = r.type === "expense" ? expenseFilter : incomeFilter;
-    if (filter === "none") return false;
-    if (filter === "all") return true;
-    return r.categoryName ? filter.categories.includes(r.categoryName) : false;
-  });
-
-  return NextResponse.json({ transactions: visible });
+  const { displayCurrency, rates } = await displayWithRates(session, visible.map((r) => r.currency));
+  return NextResponse.json({ transactions: visible, displayCurrency, rates });
 }
 
 const schema = z.object({
@@ -70,6 +73,7 @@ const schema = z.object({
     "other",
   ]),
   note: z.string().optional(),
+  currency: z.string().length(3).optional(),
   isRecurring: z.boolean().default(false),
   recurrenceFrequency: z
     .enum(["one_time", "monthly", "quarterly", "half_yearly", "yearly"])
@@ -92,6 +96,10 @@ export async function POST(req: NextRequest) {
   const allowed = session.role === "admin" || (await canEdit(session, parsed.data.type, category.name));
   if (!allowed) return NextResponse.json({ error: "You do not have permission to add this entry" }, { status: 403 });
 
+  const { base } = await getDisplayCurrency(session);
+  const currency =
+    parsed.data.currency && isSupportedCurrency(parsed.data.currency) ? parsed.data.currency : base;
+
   const [row] = await db
     .insert(transactions)
     .values({
@@ -100,6 +108,7 @@ export async function POST(req: NextRequest) {
       type: parsed.data.type,
       categoryId: parsed.data.categoryId,
       amount: parsed.data.amount.toString(),
+      currency,
       date: parsed.data.date,
       paymentMethod: parsed.data.paymentMethod,
       note: parsed.data.note,

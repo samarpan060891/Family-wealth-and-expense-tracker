@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
+import { useCurrencyCtx } from "@/components/currency-context";
+import { CurrencySelect } from "@/components/currency-select";
+import { convertWith } from "@/lib/fx-convert";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { useDocumentScan } from "@/components/use-document-scan";
 import { DocumentScanField } from "@/components/document-scan-field";
@@ -12,6 +15,7 @@ type Asset = {
   id: string;
   name: string;
   type: string;
+  currency: string;
   value: string;
   purchaseDate: string | null;
   notes: string | null;
@@ -23,14 +27,18 @@ const EMPTY_FORM = {
   value: "",
   purchaseDate: "",
   notes: "",
+  currency: "INR",
 };
 
 export default function AssetsPage() {
+  const { displayCurrency: viewerCurrency, defaultCurrency } = useCurrencyCtx();
+  const [displayCurrency, setDisplayCurrency] = useState(viewerCurrency);
+  const [rates, setRates] = useState<Record<string, number>>({});
   const [items, setItems] = useState<Asset[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState({ ...EMPTY_FORM, currency: defaultCurrency });
   const matchType = (t: string | null | undefined) =>
     (t && ASSET_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
   const { file, scanning, scanNote, onFilePicked, reset } = useDocumentScan("asset", (f) =>
@@ -46,13 +54,15 @@ export default function AssetsPage() {
   async function load() {
     const res = await fetch("/api/assets").then((r) => r.json());
     setItems(res.assets ?? []);
+    if (res.displayCurrency) setDisplayCurrency(res.displayCurrency);
+    if (res.rates) setRates(res.rates);
   }
   useEffect(() => {
     load();
   }, []);
 
   function resetForm() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     reset();
   }
 
@@ -84,13 +94,13 @@ export default function AssetsPage() {
     load();
   }
 
-  const total = items.reduce((s, i) => s + Number(i.value), 0);
+  const total = items.reduce((s, i) => s + convertWith(Number(i.value), i.currency, rates), 0);
 
   return (
     <div className="flex flex-col gap-5 stagger">
       <PageHeader title="Assets" sub={`${items.length} tracked`} action={<Button onClick={() => setOpen(true)}>+ Add</Button>} />
 
-      <StatCard label="Total Asset Value" value={fmtCurrency(total)} tone="accent" icon="▣" />
+      <StatCard label="Total Asset Value" value={fmtCurrency(total, displayCurrency)} tone="accent" icon="▣" />
 
       <Card>
         {items.length === 0 ? (
@@ -110,7 +120,7 @@ export default function AssetsPage() {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
-                  <div className="font-mono text-sm font-semibold text-accent">{fmtCurrency(Number(i.value))}</div>
+                  <div className="font-mono text-sm font-semibold text-accent">{fmtCurrency(Number(i.value), i.currency)}</div>
                   <button onClick={() => onDelete(i.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                     Delete
                   </button>
@@ -146,13 +156,17 @@ export default function AssetsPage() {
           </div>
           <div>
             <label>Current Value</label>
-            <input
-              type="number"
-              required
-              min="0"
-              value={form.value}
-              onChange={(e) => setForm({ ...form, value: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                required
+                min="0"
+                value={form.value}
+                onChange={(e) => setForm({ ...form, value: e.target.value })}
+                className="flex-1"
+              />
+              <CurrencySelect value={form.currency} onChange={(c) => setForm({ ...form, currency: c })} />
+            </div>
           </div>
           <div>
             <label>Purchase Date (optional)</label>

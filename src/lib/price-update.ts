@@ -1,12 +1,8 @@
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/db";
 import { investments } from "@/db/schema";
-import {
-  fetchYahooQuote,
-  fetchFxToInr,
-  fetchAmfiNavMap,
-  isAmfiSchemeCode,
-} from "@/lib/prices";
+import { fetchYahooQuote, fetchAmfiNavMap, isAmfiSchemeCode } from "@/lib/prices";
+import { getRate } from "@/lib/fx";
 
 export type PriceUpdateResult = {
   updated: number;
@@ -25,7 +21,6 @@ async function priceHoldings(rows: Row[]): Promise<PriceUpdateResult> {
   if (eligible.length === 0) return result;
 
   const db = await getDb();
-  const fxCache = new Map<string, number>();
 
   // Load AMFI NAVs once, only if any holding needs a mutual-fund lookup.
   const needsAmfi = eligible.some((r) => isAmfiSchemeCode(r.symbol!));
@@ -34,32 +29,34 @@ async function priceHoldings(rows: Row[]): Promise<PriceUpdateResult> {
   for (const r of eligible) {
     const symbol = r.symbol!.trim();
     const qty = Number(r.quantity);
+    const holdingCurrency = r.currency || "INR";
     try {
-      let priceInr: number | null = null;
+      // Price per unit expressed in the holding's own currency.
+      let pricePerUnit: number | null = null;
 
       if (isAmfiSchemeCode(symbol)) {
-        const nav = navMap.get(symbol);
-        priceInr = nav ?? null; // AMFI NAV is already in INR
+        const nav = navMap.get(symbol); // AMFI NAV is in INR
+        pricePerUnit = nav != null ? nav * (await getRate("INR", holdingCurrency)) : null;
       } else {
         const quote = await fetchYahooQuote(symbol);
         if (quote) {
-          const fx = await fetchFxToInr(quote.currency, fxCache);
-          if (fx != null) priceInr = quote.price * fx;
+          const fx = await getRate(quote.currency, holdingCurrency);
+          pricePerUnit = quote.price * fx;
         }
       }
 
-      if (priceInr == null || !Number.isFinite(priceInr) || priceInr <= 0) {
+      if (pricePerUnit == null || !Number.isFinite(pricePerUnit) || pricePerUnit <= 0) {
         result.failed++;
         result.details.push({ id: r.id, name: r.name, ok: false, reason: "No price found" });
         continue;
       }
 
-      const value = Math.round(qty * priceInr * 100) / 100;
+      const value = Math.round(qty * pricePerUnit * 100) / 100;
       await db
         .update(investments)
         .set({
           currentValue: value.toString(),
-          lastPrice: priceInr.toString(),
+          lastPrice: pricePerUnit.toString(),
           lastPricedAt: new Date(),
         })
         .where(eq(investments.id, r.id));

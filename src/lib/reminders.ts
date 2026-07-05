@@ -18,6 +18,7 @@ export type DueItem = {
   title: string;
   subtitle: string;
   amount: number | null;
+  currency: string; // the amount's own currency
   dueDate: string; // YYYY-MM-DD
   status: "overdue" | "due_soon" | "upcoming";
   actionLabel: string;
@@ -65,10 +66,10 @@ const OVERDUE_LOOKBACK_DAYS = 120;
 const RECURRING_UPCOMING_DAYS = 10;
 const DATED_UPCOMING_DAYS = 45; // renewals / maturities
 
-type RecurringTx = { id: string; type: "income" | "expense"; amount: string; date: string; isRecurring: boolean; recurrenceFrequency: string; categoryName: string | null };
-type Debt = { id: string; name: string; type: string; emiAmount: string | null; emiDay: string | null; startDate: string; endDate: string | null };
-type Insurance = { id: string; name: string; type: string; premiumAmount: string; premiumFrequency: string; startDate: string; expiryDate: string };
-type Investment = { id: string; name: string; type: string; maturityDate: string | null; currentValue: string | null; investedAmount: string };
+type RecurringTx = { id: string; type: "income" | "expense"; amount: string; currency: string; date: string; isRecurring: boolean; recurrenceFrequency: string; categoryName: string | null };
+type Debt = { id: string; name: string; type: string; currency: string; emiAmount: string | null; emiDay: string | null; startDate: string; endDate: string | null };
+type Insurance = { id: string; name: string; type: string; currency: string; premiumAmount: string; premiumFrequency: string; startDate: string; expiryDate: string };
+type Investment = { id: string; name: string; type: string; currency: string; maturityDate: string | null; currentValue: string | null; investedAmount: string };
 
 export type ReminderSources = {
   transactions: RecurringTx[];
@@ -144,6 +145,7 @@ export function computeReminders(src: ReminderSources): DueItem[] {
       title: label,
       subtitle: t.type === "income" ? "Recurring income expected" : "Recurring payment due",
       amount: num(t.amount),
+      currency: t.currency,
       dueDate,
       status,
       actionLabel: t.type === "income" ? "Mark received" : "Mark paid",
@@ -167,6 +169,7 @@ export function computeReminders(src: ReminderSources): DueItem[] {
       title: `${d.name} EMI`,
       subtitle: `${d.type} installment`,
       amount: emi,
+      currency: d.currency,
       dueDate,
       status,
       actionLabel: "Mark paid",
@@ -187,6 +190,7 @@ export function computeReminders(src: ReminderSources): DueItem[] {
         title: `${ins.name} premium`,
         subtitle: `${ins.type} premium due`,
         amount: premium,
+        currency: ins.currency,
         dueDate,
         status,
         actionLabel: "Mark paid",
@@ -200,6 +204,7 @@ export function computeReminders(src: ReminderSources): DueItem[] {
       title: `${ins.name} renewal`,
       subtitle: `${ins.type} policy ${daysBetween(expiry, today) < 0 ? "expired" : "expires"}`,
       amount: null,
+      currency: ins.currency,
       dueDate,
       status,
       actionLabel: "Mark renewed",
@@ -218,6 +223,7 @@ export function computeReminders(src: ReminderSources): DueItem[] {
       title: `${inv.name} matures`,
       subtitle: `${inv.type} ${daysBetween(due, today) < 0 ? "matured" : "maturing"}`,
       amount: num(inv.currentValue ?? inv.investedAmount),
+      currency: inv.currency,
       dueDate,
       status,
       actionLabel: "Mark handled",
