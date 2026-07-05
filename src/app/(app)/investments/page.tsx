@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
 import { useToast } from "@/components/toast";
+import { InvestmentImport } from "@/components/investment-import";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { useDocumentScan } from "@/components/use-document-scan";
 import { DocumentScanField } from "@/components/document-scan-field";
@@ -170,6 +171,7 @@ export default function InvestmentsPage() {
                 {refreshing ? "Refreshing…" : "↻ Prices"}
               </Button>
             )}
+            <InvestmentImport onDone={load} />
             <Button onClick={openAdd}>+ Add</Button>
           </div>
         }
