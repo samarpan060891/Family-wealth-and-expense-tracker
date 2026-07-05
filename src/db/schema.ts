@@ -376,6 +376,24 @@ export const netWorthSnapshots = pgTable(
   (t) => [primaryKey({ columns: [t.householdId, t.date] })]
 );
 
+// Records that a due item (an EMI, premium, recurring income, renewal, maturity…)
+// was acted on for a specific due date, so reminders stop nagging for that period.
+// A recurring item completed for one period reappears for the next (different dueDate).
+export const reminderCompletions = pgTable(
+  "reminder_completions",
+  {
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 40 }).notNull(), // e.g. emi, insurance_premium, recurring_income
+    sourceId: uuid("source_id").notNull(), // the debt/insurance/investment/transaction id
+    dueDate: date("due_date").notNull(),
+    completedById: uuid("completed_by_id").references(() => users.id, { onDelete: "set null" }),
+    completedAt: timestamp("completed_at").defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.sourceId, t.dueDate] })]
+);
+
 export const householdsRelations = relations(households, ({ many }) => ({
   users: many(users),
 }));

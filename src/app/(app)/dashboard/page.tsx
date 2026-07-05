@@ -18,6 +18,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Badge, Card, EmptyState, PageHeader, StatCard, fmtCurrency } from "@/components/ui";
+import { RemindersPanel } from "@/components/reminders-panel";
 
 type Tx = {
   id: string;
@@ -133,6 +134,9 @@ export default function DashboardPage() {
           </Link>
         }
       />
+
+      {/* ACTION NEEDED — persistent reminders until marked done */}
+      <RemindersPanel compact />
 
       {/* AI / SMART SUMMARY */}
       {insights?.summary && (
