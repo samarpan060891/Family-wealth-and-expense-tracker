@@ -24,6 +24,7 @@ export async function GET() {
           type: transactions.type,
           amount: transactions.amount,
           currency: transactions.currency,
+          isTransfer: transactions.isTransfer,
           date: transactions.date,
           isRecurring: transactions.isRecurring,
           categoryName: categories.name,
@@ -94,13 +95,15 @@ export async function GET() {
     }
 
     const result = computeInsights({
-      transactions: visibleTx.map((t) => ({
-        type: t.type as "expense" | "income",
-        amount: cv(Number(t.amount), t.currency).toString(),
-        date: t.date,
-        isRecurring: t.isRecurring,
-        categoryName: t.categoryName,
-      })),
+      transactions: visibleTx
+        .filter((t) => !t.isTransfer)
+        .map((t) => ({
+          type: t.type as "expense" | "income",
+          amount: cv(Number(t.amount), t.currency).toString(),
+          date: t.date,
+          isRecurring: t.isRecurring,
+          categoryName: t.categoryName,
+        })),
       investments: visibleInv.map((i) => ({
         ...i,
         investedAmount: cv(Number(i.investedAmount), i.currency).toString(),

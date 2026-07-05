@@ -131,6 +131,9 @@ export const transactions = pgTable("transactions", {
   }),
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 3 }).notNull().default("INR"),
+  // A credit-card bill payment / account transfer: recorded for cashflow but
+  // excluded from spending totals so card purchases aren't double-counted.
+  isTransfer: boolean("is_transfer").notNull().default(false),
   date: date("date").notNull(),
   paymentMethod: paymentMethodEnum("payment_method")
     .notNull()

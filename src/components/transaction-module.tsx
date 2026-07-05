@@ -16,6 +16,7 @@ type Tx = {
   id: string;
   amount: string;
   currency: string;
+  isTransfer: boolean;
   date: string;
   paymentMethod: string;
   note: string | null;
@@ -50,6 +51,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     date: new Date().toISOString().slice(0, 10),
     paymentMethod: "cash",
     note: "",
+    isTransfer: false,
     isRecurring: false,
     recurrenceFrequency: "one_time",
   });
@@ -110,6 +112,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       date: new Date().toISOString().slice(0, 10),
       paymentMethod: "cash",
       note: "",
+      isTransfer: false,
       isRecurring: false,
       recurrenceFrequency: "one_time",
     });
@@ -192,8 +195,12 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const months = Array.from(new Set(items.map((i) => i.date.slice(0, 7)))).sort().reverse();
   const filtered = monthFilter ? items.filter((i) => i.date.startsWith(monthFilter)) : items;
   // Total is in the viewer's display currency, converting each entry from its own.
-  const total = filtered.reduce((s, i) => s + convertWith(Number(i.amount), i.currency, rates), 0);
-  const mixedCurrencies = new Set(filtered.map((i) => i.currency)).size > 1;
+  // Credit-card bill payments / transfers are excluded so card purchases (already
+  // recorded individually) aren't double-counted.
+  const spending = filtered.filter((i) => !i.isTransfer);
+  const total = spending.reduce((s, i) => s + convertWith(Number(i.amount), i.currency, rates), 0);
+  const transferCount = filtered.length - spending.length;
+  const mixedCurrencies = new Set(spending.map((i) => i.currency)).size > 1;
 
   const label = type === "expense" ? "Expense" : "Income";
   const tone = type === "expense" ? "text-red" : "text-green";
@@ -228,6 +235,11 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
         {mixedCurrencies && (
           <div className="text-[11px] text-muted-soft mt-1">Converted to {displayCurrency} at current rates</div>
         )}
+        {transferCount > 0 && (
+          <div className="text-[11px] text-muted-soft mt-1">
+            {transferCount} card-bill/transfer {transferCount === 1 ? "entry" : "entries"} excluded from this total
+          </div>
+        )}
       </Card>
 
       <Card>
@@ -254,7 +266,14 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
             {filtered.map((tx) => (
               <div key={tx.id} className="flex justify-between items-start py-3 first:pt-0 last:pb-0">
                 <div className="min-w-0">
-                  <div className="font-semibold text-sm">{tx.categoryName ?? "Uncategorized"}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm">{tx.categoryName ?? "Uncategorized"}</span>
+                    {tx.isTransfer && (
+                      <span className="text-[10px] font-semibold text-muted bg-surface3 rounded-full px-2 py-0.5">
+                        Transfer
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted mt-0.5">
                     {tx.date} · {PAYMENT_METHODS.find((p) => p.value === tx.paymentMethod)?.label}
                     {tx.isRecurring ? ` · Recurring (${tx.recurrenceFrequency})` : ""}
@@ -265,7 +284,9 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0 pl-3">
-                  <div className={`font-mono text-sm font-semibold ${tone}`}>{fmtCurrency(Number(tx.amount), tx.currency)}</div>
+                  <div className={`font-mono text-sm font-semibold ${tx.isTransfer ? "text-muted-soft" : tone}`}>
+                    {fmtCurrency(Number(tx.amount), tx.currency)}
+                  </div>
                   <button onClick={() => onDelete(tx.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
                     Delete
                   </button>
@@ -390,6 +411,24 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
               ))}
             </select>
           </div>
+          {type === "expense" && (
+            <div className="border border-border rounded-xl p-3 bg-surface2/40">
+              <label className="!mb-0 !normal-case flex items-center gap-2 text-sm text-text">
+                <input
+                  type="checkbox"
+                  className="!w-auto"
+                  checked={form.isTransfer}
+                  onChange={(e) => setForm({ ...form, isTransfer: e.target.checked })}
+                />
+                Credit-card bill payment / transfer
+              </label>
+              <p className="text-[11px] text-muted-soft mt-1.5 leading-relaxed">
+                Tick this when you&apos;re recording a credit-card bill payment or moving money between accounts. It&apos;s
+                kept for your records but <b>excluded from spending totals</b>, so purchases you already logged on the card
+                aren&apos;t counted twice.
+              </p>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <input
               type="checkbox"

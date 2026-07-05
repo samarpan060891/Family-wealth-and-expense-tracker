@@ -64,6 +64,13 @@
       "when": 1783234754405,
       "tag": "0008_sticky_dreaming_celestial",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783258466156,
+      "tag": "0009_burly_diamondback",
+      "breakpoints": true
     }
   ]
 }

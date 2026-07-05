@@ -22,6 +22,7 @@ export async function GET() {
         type: transactions.type,
         amount: transactions.amount,
         currency: transactions.currency,
+        isTransfer: transactions.isTransfer,
         date: transactions.date,
         isRecurring: transactions.isRecurring,
         recurrenceFrequency: transactions.recurrenceFrequency,
@@ -86,9 +87,11 @@ export async function GET() {
   const rates = await ratesTo(displayCurrency, currencies);
   const cv = (amount: number, currency: string) => amount * (rates[currency] ?? 1);
 
-  // Monthly trend: last 12 months income vs expense
+  // Monthly trend: last 12 months income vs expense (transfers/card-bill payments
+  // are settlements, not spending — exclude them so nothing is double-counted).
   const monthlyTotals: Record<string, { income: number; expense: number }> = {};
   for (const t of visibleTx) {
+    if (t.isTransfer) continue;
     const key = format(parseISO(t.date), "MMM yyyy");
     monthlyTotals[key] ??= { income: 0, expense: 0 };
     monthlyTotals[key][t.type as "income" | "expense"] += cv(Number(t.amount), t.currency);
@@ -97,7 +100,7 @@ export async function GET() {
   const currentMonthKey = format(new Date(), "yyyy-MM");
   const categoryBreakdown: Record<string, number> = {};
   for (const t of visibleTx) {
-    if (t.type !== "expense") continue;
+    if (t.type !== "expense" || t.isTransfer) continue;
     if (!t.date.startsWith(currentMonthKey)) continue;
     const name = t.categoryName ?? "Uncategorized";
     categoryBreakdown[name] = (categoryBreakdown[name] ?? 0) + cv(Number(t.amount), t.currency);
@@ -121,7 +124,7 @@ export async function GET() {
 
   // This month's savings rate = (income − expense) / income.
   const thisMonthIncome = visibleTx
-    .filter((t) => t.type === "income" && t.date.startsWith(currentMonthKey))
+    .filter((t) => t.type === "income" && !t.isTransfer && t.date.startsWith(currentMonthKey))
     .reduce((s, t) => s + cv(Number(t.amount), t.currency), 0);
   const thisMonthExpense = Object.values(categoryBreakdown).reduce((s, v) => s + v, 0);
   const savingsRate = thisMonthIncome > 0 ? (thisMonthIncome - thisMonthExpense) / thisMonthIncome : null;
@@ -141,14 +144,17 @@ export async function GET() {
     }));
 
   // Cashflow projection also in display currency: convert amounts before projecting.
+  // Transfers/card-bill payments are excluded (the underlying purchases already count).
   const cashflowProjection = buildCashflowProjection(
-    visibleTx.map((t) => ({
-      type: t.type as "income" | "expense",
-      amount: cv(Number(t.amount), t.currency).toString(),
-      date: t.date,
-      isRecurring: t.isRecurring,
-      recurrenceFrequency: t.recurrenceFrequency,
-    })),
+    visibleTx
+      .filter((t) => !t.isTransfer)
+      .map((t) => ({
+        type: t.type as "income" | "expense",
+        amount: cv(Number(t.amount), t.currency).toString(),
+        date: t.date,
+        isRecurring: t.isRecurring,
+        recurrenceFrequency: t.recurrenceFrequency,
+      })),
     visibleDebts.map((d) => ({ ...d, emiAmount: d.emiAmount != null ? cv(Number(d.emiAmount), d.currency).toString() : d.emiAmount })),
     visibleInsurances.map((i) => ({ ...i, premiumAmount: cv(Number(i.premiumAmount), i.currency).toString() }))
   );
