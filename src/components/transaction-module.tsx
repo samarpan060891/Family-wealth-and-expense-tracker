@@ -17,6 +17,7 @@ type Tx = {
   amount: string;
   currency: string;
   isTransfer: boolean;
+  cardId: string | null;
   date: string;
   paymentMethod: string;
   note: string | null;
@@ -45,6 +46,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [displayCurrency, setDisplayCurrency] = useState(viewerCurrency);
   const [rates, setRates] = useState<Record<string, number>>({});
   const [cards, setCards] = useState<{ id: string; nickname: string; last4: string | null }[]>([]);
+  const [assignTx, setAssignTx] = useState<Tx | null>(null);
   const [form, setForm] = useState({
     categoryId: "",
     amount: "",
@@ -190,6 +192,21 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     }
   }
 
+  async function assignCard(txId: string, cardId: string | null, asTransfer?: boolean) {
+    const res = await fetch(`/api/transactions/${txId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cardId, ...(asTransfer !== undefined ? { isTransfer: asTransfer } : {}) }),
+    });
+    if (res.ok) {
+      success(cardId ? "Assigned to card." : "Removed from card.");
+      setAssignTx(null);
+      load();
+    } else {
+      toastError("Couldn't update the card link.");
+    }
+  }
+
   async function onDelete(id: string) {
     if (!confirm(`Delete this ${label.toLowerCase()} entry?`)) return;
     const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
@@ -286,6 +303,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
                   <div className="text-xs text-muted mt-0.5">
                     {tx.date} · {PAYMENT_METHODS.find((p) => p.value === tx.paymentMethod)?.label}
                     {tx.isRecurring ? ` · Recurring (${tx.recurrenceFrequency})` : ""}
+                    {tx.cardId ? ` · ▦ ${cards.find((c) => c.id === tx.cardId)?.nickname ?? "Card"}` : ""}
                   </div>
                   {tx.note && <div className="text-xs text-muted-soft mt-0.5 truncate">{tx.note}</div>}
                   <div className="mt-1.5">
@@ -296,9 +314,19 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
                   <div className={`font-mono text-sm font-semibold ${tx.isTransfer ? "text-muted-soft" : tone}`}>
                     {fmtCurrency(Number(tx.amount), tx.currency)}
                   </div>
-                  <button onClick={() => onDelete(tx.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
-                    Delete
-                  </button>
+                  <div className="flex gap-2">
+                    {type === "expense" && cards.length > 0 && (
+                      <button
+                        onClick={() => setAssignTx(tx)}
+                        className="text-xs text-accent hover:text-accent-soft transition-colors"
+                      >
+                        {tx.cardId ? "Card" : "+ Card"}
+                      </button>
+                    )}
+                    <button onClick={() => onDelete(tx.id)} className="text-xs text-muted-soft hover:text-red transition-colors">
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -499,6 +527,58 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
             {saving ? "Saving…" : "Save"}
           </Button>
         </form>
+        )}
+      </Modal>
+
+      {/* ASSIGN TO CARD */}
+      <Modal open={!!assignTx} onClose={() => setAssignTx(null)} title="Assign to card">
+        {assignTx && (
+          <div className="flex flex-col gap-3">
+            <div className="text-sm text-muted">
+              {assignTx.categoryName ?? "Entry"} · {fmtCurrency(Number(assignTx.amount), assignTx.currency)}
+            </div>
+            {!assignTx.isTransfer && (
+              <label className="!mb-0 !normal-case flex items-start gap-2 text-xs text-muted bg-surface2/60 rounded-lg px-3 py-2">
+                <span>💡</span>
+                <span>Purchases add to the card&apos;s balance. If this row is a bill payment, mark it below.</span>
+              </label>
+            )}
+            <div className="flex flex-col gap-1.5">
+              {cards.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => assignCard(assignTx.id, c.id)}
+                  className={`flex items-center justify-between text-left border rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                    assignTx.cardId === c.id ? "border-accent bg-accent-glow" : "border-border hover:border-accent/50"
+                  }`}
+                >
+                  <span className="font-semibold">
+                    ▦ {c.nickname}
+                    {c.last4 ? ` •••• ${c.last4}` : ""}
+                  </span>
+                  {assignTx.cardId === c.id && <span className="text-accent text-xs">Linked ✓</span>}
+                </button>
+              ))}
+            </div>
+            {assignTx.cardId && (
+              <button
+                onClick={() => assignCard(assignTx.id, null)}
+                className="text-xs text-muted hover:text-red transition-colors self-start"
+              >
+                Remove from card
+              </button>
+            )}
+            <div className="border-t border-border-soft pt-3">
+              <button
+                onClick={() => assignCard(assignTx.id, assignTx.cardId, !assignTx.isTransfer)}
+                className="text-xs font-semibold text-accent"
+              >
+                {assignTx.isTransfer
+                  ? "This is a purchase, not a bill payment"
+                  : "Mark this as a card bill payment (exclude from spending)"}
+              </button>
+            </div>
+          </div>
         )}
       </Modal>
     </div>
