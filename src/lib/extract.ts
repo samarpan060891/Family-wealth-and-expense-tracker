@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { extractPdfText, hasUsableText } from "@/lib/pdf-text";
 
 // Model is configurable so the deployer can trade cost for accuracy.
 // Defaults to Claude Haiku 4.5 (cheapest, well-suited to reading bills/statements);
@@ -107,23 +108,32 @@ export async function extractFromDocument(params: {
     return { fields: {}, configured: true };
   }
 
-  const documentBlock = isPdf
-    ? {
-        type: "document" as const,
-        source: { type: "base64" as const, media_type: "application/pdf" as const, data: base64 },
-      }
-    : {
-        type: "image" as const,
-        source: {
-          type: "base64" as const,
-          media_type: fileType as "image/png" | "image/jpeg" | "image/gif" | "image/webp",
-          data: base64,
-        },
-      };
-
   const fields = MODULE_FIELDS[module];
   const fieldList = fields.map((f) => `- ${f.key}: ${f.hint}`).join("\n");
   const keys = fields.map((f) => f.key).join(", ");
+
+  // Token-saving layer: for text-based PDFs, extract the text locally and send
+  // Claude plain text instead of the whole PDF (much cheaper). Scanned PDFs (no
+  // text layer) and images fall back to sending the document/image for vision.
+  let contentBlock: Anthropic.Messages.ContentBlockParam;
+  if (isPdf) {
+    const pdfText = await extractPdfText(base64);
+    contentBlock = hasUsableText(pdfText)
+      ? { type: "text", text: `Extracted document text:\n\n${pdfText.slice(0, 20000)}` }
+      : {
+          type: "document",
+          source: { type: "base64", media_type: "application/pdf", data: base64 },
+        };
+  } else {
+    contentBlock = {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: fileType as "image/png" | "image/jpeg" | "image/gif" | "image/webp",
+        data: base64,
+      },
+    };
+  }
 
   const response = await client.messages.create({
     model: MODEL,
@@ -132,7 +142,7 @@ export async function extractFromDocument(params: {
       {
         role: "user",
         content: [
-          documentBlock,
+          contentBlock,
           {
             type: "text",
             text:
