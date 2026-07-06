@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { format } from "date-fns";
 import { getDb } from "@/db";
@@ -12,10 +13,15 @@ import { ratesTo } from "@/lib/fx";
 
 export const maxDuration = 30;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   return safeRoute(async () => {
     const session = await getSession();
     if (!session) return UNAUTHORIZED();
+
+    // The AI summary spends API tokens, so it's opt-in: only generated when the
+    // client explicitly asks with ?ai=1 (the "Generate summary" button). The rest
+    // of this endpoint (insights, anomalies, snapshot) is deterministic and free.
+    const wantAiSummary = req.nextUrl.searchParams.get("ai") === "1";
 
     const db = await getDb();
     const [txRows, invRows, debtRows, assetRows, goalRows, snapRows] = await Promise.all([
@@ -123,7 +129,7 @@ export async function GET() {
       })),
     });
 
-    const aiSummary = await summarizeFacts(result.facts);
+    const aiSummary = wantAiSummary ? await summarizeFacts(result.facts) : null;
 
     return Response.json({
       summary: aiSummary ?? result.headline,

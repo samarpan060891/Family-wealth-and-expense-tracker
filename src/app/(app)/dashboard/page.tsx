@@ -80,16 +80,32 @@ export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [drill, setDrill] = useState<string | null>(null);
+  const [genSummary, setGenSummary] = useState(false);
 
   useEffect(() => {
     fetch("/api/dashboard")
       .then((r) => r.json())
       .then(setData);
+    // Load deterministic insights/anomalies only (free — no AI tokens).
     fetch("/api/insights")
       .then((r) => r.json())
       .then(setInsights)
       .catch(() => {});
   }, []);
+
+  // The AI summary is opt-in (spends API tokens) — only on button click.
+  async function generateSummary() {
+    setGenSummary(true);
+    try {
+      const res = await fetch("/api/insights?ai=1");
+      const d = await res.json();
+      setInsights(d);
+    } catch {
+      /* keep the deterministic summary */
+    } finally {
+      setGenSummary(false);
+    }
+  }
 
   const currentMonth = new Date().toISOString().slice(0, 7);
   const sortedCategories = useMemo(
@@ -151,6 +167,15 @@ export default function DashboardPage() {
             </span>
           </div>
           <p className="text-sm leading-relaxed text-text">{insights.summary}</p>
+          {insights.aiAvailable && !insights.aiGenerated && (
+            <button
+              onClick={generateSummary}
+              disabled={genSummary}
+              className="mt-2.5 text-xs font-semibold text-accent border border-accent/50 hover:bg-accent-glow rounded-lg px-3 py-1.5 transition-colors disabled:opacity-60"
+            >
+              {genSummary ? "Writing your summary…" : "✨ Generate AI summary"}
+            </button>
+          )}
         </Card>
       )}
 
