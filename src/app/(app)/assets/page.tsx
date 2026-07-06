@@ -4,6 +4,7 @@ import { Button, Card, EmptyState, Modal, PageHeader, StatCard, fmtCurrency } fr
 import { useCurrencyCtx } from "@/components/currency-context";
 import { CurrencySelect } from "@/components/currency-select";
 import { convertWith } from "@/lib/fx-convert";
+import { ValueEstimator } from "@/components/value-estimator";
 import { uploadAttachment } from "@/components/attachment-uploader";
 import { useDocumentScan } from "@/components/use-document-scan";
 import { DocumentScanField } from "@/components/document-scan-field";
@@ -29,6 +30,9 @@ const EMPTY_FORM = {
   notes: "",
   currency: "INR",
 };
+
+// Asset types where an AI value estimate is worthwhile.
+const ESTIMABLE = new Set(["Real Estate", "Vehicle", "Gold / Jewellery"]);
 
 export default function AssetsPage() {
   const { displayCurrency: viewerCurrency, defaultCurrency } = useCurrencyCtx();
@@ -168,6 +172,18 @@ export default function AssetsPage() {
               <CurrencySelect value={form.currency} onChange={(c) => setForm({ ...form, currency: c })} />
             </div>
           </div>
+
+          {ESTIMABLE.has(form.type) && (
+            <ValueEstimator
+              assetType={form.type}
+              name={form.name}
+              currency={form.currency}
+              purchasePrice={form.value}
+              purchaseDate={form.purchaseDate}
+              onApply={(v) => setForm((prev) => ({ ...prev, value: String(v) }))}
+            />
+          )}
+
           <div>
             <label>Purchase Date (optional)</label>
             <input

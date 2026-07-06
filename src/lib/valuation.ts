@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 // Uses Claude's server-side web-search tool to look up recent comparable listings
-// / sale prices for a property's area and estimate its current market value.
-// A capable model helps here; override with VALUATION_MODEL if desired.
+// / prices and estimate the current market value of an asset (real estate,
+// vehicle, gold, etc.). A capable model helps; override with VALUATION_MODEL.
 const MODEL = process.env.VALUATION_MODEL ?? process.env.EXTRACTION_MODEL ?? "claude-haiku-4-5";
 
 export function isValuationConfigured() {
@@ -10,13 +10,15 @@ export function isValuationConfigured() {
 }
 
 export type ValuationInput = {
-  location: string;
+  assetType: string; // e.g. Real Estate, Vehicle, Gold / Jewellery
+  name?: string | null;
+  location?: string | null;
   sizeValue?: number | null;
   sizeUnit?: string | null;
+  details?: string | null; // free text: make/model/year, purity/weight, condition…
   purchasePrice?: number | null;
   purchaseDate?: string | null;
   currency: string;
-  propertyName?: string | null;
 };
 
 export type ValuationResult = {
@@ -43,7 +45,7 @@ function parseJsonObject(text: string): Record<string, unknown> {
   }
 }
 
-export async function estimateProperty(input: ValuationInput): Promise<ValuationResult> {
+export async function estimateValue(input: ValuationInput): Promise<ValuationResult> {
   const base: ValuationResult = {
     configured: isValuationConfigured(),
     estimatedValue: null,
@@ -57,11 +59,18 @@ export async function estimateProperty(input: ValuationInput): Promise<Valuation
   if (!isValuationConfigured())
     return { ...base, summary: "AI valuation is off — set ANTHROPIC_API_KEY to enable it." };
 
-  const size = input.sizeValue && input.sizeUnit ? `${input.sizeValue} ${input.sizeUnit}` : "unspecified size";
-  const bought =
+  const facts = [
+    `Asset type: ${input.assetType}`,
+    input.name ? `Name/description: ${input.name}` : "",
+    input.location ? `Location / area: ${input.location}` : "",
+    input.sizeValue && input.sizeUnit ? `Size: ${input.sizeValue} ${input.sizeUnit}` : "",
+    input.details ? `Details: ${input.details}` : "",
     input.purchasePrice != null
-      ? `It was purchased for ${input.purchasePrice} ${input.currency}${input.purchaseDate ? ` on ${input.purchaseDate}` : ""}.`
-      : "";
+      ? `Bought for ${input.purchasePrice} ${input.currency}${input.purchaseDate ? ` on ${input.purchaseDate}` : ""}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const client = new Anthropic();
   const response = await client.messages.create({
@@ -72,24 +81,20 @@ export async function estimateProperty(input: ValuationInput): Promise<Valuation
       {
         role: "user",
         content:
-          `Estimate the current market value of this real-estate property using recent web listings and sale prices.\n` +
-          `- Property: ${input.propertyName ?? "residential/commercial property"}\n` +
-          `- Location / area: ${input.location}\n` +
-          `- Size: ${size}\n` +
-          (bought ? `- ${bought}\n` : "") +
-          `\nSearch recent (last ~6-12 months) comparable listings or sale prices in that specific area, ` +
-          `work out a representative per-unit rate (e.g. price per ${input.sizeUnit ?? "sq ft"}), and multiply by the size. ` +
-          `Report the value in ${input.currency}.\n\n` +
+          `Estimate the current market value of this asset using recent web listings, sale prices or market rates.\n` +
+          `${facts}\n\n` +
+          `Search recent (last ~6-12 months) comparable listings / prices for this kind of asset in the relevant market ` +
+          `(for property: comparable homes in that area and a per-unit rate × the size; for a vehicle: same make/model/year/condition; ` +
+          `for gold/jewellery: the current per-gram rate × weight and purity). Report the value in ${input.currency}.\n\n` +
           `Respond with ONLY a JSON object with keys: ` +
           `estimatedValue (number, total value in ${input.currency}, digits only), ` +
           `perUnitValue (number or null), unit (string or null), confidence ("low"|"medium"|"high"), ` +
-          `summary (one or two sentences on how you arrived at it and the price range seen). ` +
-          `Do not include currency symbols or commas in numbers.`,
+          `summary (one or two sentences on how you arrived at it and the range seen). ` +
+          `No currency symbols or commas in numbers.`,
       },
     ],
   });
 
-  // Collect any cited sources from web-search results.
   const sources: { title: string; url: string }[] = [];
   let finalText = "";
   for (const block of response.content) {
@@ -108,8 +113,6 @@ export async function estimateProperty(input: ValuationInput): Promise<Valuation
     return Number.isFinite(n) && n > 0 ? n : null;
   };
   const conf = parsed.confidence;
-
-  // De-dup sources by URL.
   const seen = new Set<string>();
   const uniqueSources = sources.filter((s) => (seen.has(s.url) ? false : (seen.add(s.url), true))).slice(0, 6);
 
@@ -119,7 +122,7 @@ export async function estimateProperty(input: ValuationInput): Promise<Valuation
     perUnitValue: num(parsed.perUnitValue),
     unit: typeof parsed.unit === "string" ? parsed.unit : input.sizeUnit ?? null,
     confidence: conf === "low" || conf === "medium" || conf === "high" ? conf : null,
-    summary: typeof parsed.summary === "string" ? parsed.summary : "Estimated from recent comparable listings.",
+    summary: typeof parsed.summary === "string" ? parsed.summary : "Estimated from recent comparable prices.",
     sources: uniqueSources,
   };
 }
