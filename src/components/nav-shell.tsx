@@ -32,6 +32,7 @@ const MOBILE_MORE = [
   { href: "/cash", label: "Cash & Bank", icon: "▢" },
   { href: "/cards", label: "Cards", icon: "▦" },
   { href: "/reminders", label: "Reminders", icon: "🔔" },
+  { href: "/documents", label: "Documents", icon: "🗂" },
   { href: "/reports", label: "Reports", icon: "▤" },
 ];
 
@@ -155,6 +156,17 @@ export function NavShell({
                 {reminderCount}
               </span>
             )}
+          </Link>
+          <Link
+            href="/documents"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              pathname === "/documents" ? "bg-accent-glow text-accent" : "text-muted hover:text-text hover:bg-surface2"
+            }`}
+          >
+            <span className={`text-xs w-4 text-center ${pathname === "/documents" ? "text-accent" : "text-muted-soft"}`}>
+              🗂
+            </span>
+            Documents
           </Link>
           <Link
             href="/reports"

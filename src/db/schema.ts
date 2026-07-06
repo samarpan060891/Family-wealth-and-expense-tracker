@@ -269,6 +269,27 @@ export const attachments = pgTable("attachments", {
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
 });
 
+// Standalone document library — files not tied to any specific record (tax
+// returns, property papers, IDs, wills...). Kept separate from `attachments`,
+// which are per-record. Scoped to the household.
+export const documents = pgTable("documents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 200 }).notNull(),
+  category: varchar("category", { length: 40 }).notNull().default("other"),
+  note: text("note"),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  fileType: varchar("file_type", { length: 100 }).notNull(),
+  fileSize: integer("file_size").notNull().default(0),
+  fileData: text("file_data").notNull(), // base64-encoded content
+  uploadedById: uuid("uploaded_by_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+});
+
 // Household member profiles (self, spouse, kids...) used for age-based planning.
 // Distinct from `users` - a family profile need not have a login account.
 export const familyMembers = pgTable("family_members", {
