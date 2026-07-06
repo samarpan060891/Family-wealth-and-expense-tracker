@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { transactions, categories, debts, insurances, investments, assets, netWorthSnapshots } from "@/db/schema";
+import { transactions, categories, debts, insurances, investments, assets, netWorthSnapshots, cashAccounts, cards } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { getCategoryFilter } from "@/lib/permissions";
 import { buildCashflowProjection, upcomingExpiries } from "@/lib/cashflow";
 import { getDisplayCurrency } from "@/lib/display";
-import { ratesTo } from "@/lib/fx";
+import { ratesTo, getRate } from "@/lib/fx";
+import { computeBalances } from "@/lib/cash";
 import { format, parseISO } from "date-fns";
 
 export async function GET() {
@@ -43,6 +44,40 @@ export async function GET() {
     .select()
     .from(netWorthSnapshots)
     .where(eq(netWorthSnapshots.householdId, session.householdId));
+
+  // Cash accounts and cards for net worth (cash adds, card debt subtracts).
+  const [accountRows, cardRows, balanceTx] = await Promise.all([
+    db.select().from(cashAccounts).where(eq(cashAccounts.householdId, session.householdId)),
+    db.select().from(cards).where(eq(cards.householdId, session.householdId)),
+    db
+      .select({
+        accountId: transactions.accountId,
+        cardId: transactions.cardId,
+        type: transactions.type,
+        amount: transactions.amount,
+        currency: transactions.currency,
+        paymentMethod: transactions.paymentMethod,
+        isTransfer: transactions.isTransfer,
+      })
+      .from(transactions)
+      .where(eq(transactions.householdId, session.householdId)),
+  ]);
+
+  const accountBalances = await computeBalances(
+    accountRows,
+    balanceTx.map((t) => ({ ...t, type: t.type as "income" | "expense" }))
+  );
+  // Card outstanding per card, in the card's own currency.
+  const cardOutstanding = new Map<string, number>();
+  for (const c of cardRows) {
+    let bal = 0;
+    for (const t of balanceTx) {
+      if (t.cardId !== c.id) continue;
+      const amt = Number(t.amount) * (await getRate(t.currency, c.currency));
+      bal += t.isTransfer ? -amt : amt;
+    }
+    cardOutstanding.set(c.id, Math.max(0, bal));
+  }
 
   let visibleTx = txRows;
   let visibleDebts = debtRows;
@@ -84,8 +119,14 @@ export async function GET() {
   for (const i of visibleInvestments) currencies.add(i.currency);
   for (const a of visibleAssets) currencies.add(a.currency);
   for (const d of visibleDebts) currencies.add(d.currency);
+  for (const a of accountRows) currencies.add(a.currency);
+  for (const c of cardRows) currencies.add(c.currency);
   const rates = await ratesTo(displayCurrency, currencies);
   const cv = (amount: number, currency: string) => amount * (rates[currency] ?? 1);
+
+  // Cash and card totals in the display currency.
+  const cashTotal = accountRows.reduce((s, a) => s + cv(accountBalances.get(a.id) ?? 0, a.currency), 0);
+  const cardTotal = cardRows.reduce((s, c) => s + cv(cardOutstanding.get(c.id) ?? 0, c.currency), 0);
 
   // Monthly trend: last 12 months income vs expense (transfers/card-bill payments
   // are settlements, not spending — exclude them so nothing is double-counted).
@@ -108,8 +149,10 @@ export async function GET() {
 
   const netWorth =
     visibleInvestments.reduce((s, i) => s + cv(Number(i.currentValue ?? i.investedAmount), i.currency), 0) +
-    visibleAssets.reduce((s, a) => s + cv(Number(a.value), a.currency), 0) -
-    visibleDebts.reduce((s, d) => s + cv(Number(d.outstandingAmount), d.currency), 0);
+    visibleAssets.reduce((s, a) => s + cv(Number(a.value), a.currency), 0) +
+    cashTotal -
+    visibleDebts.reduce((s, d) => s + cv(Number(d.outstandingAmount), d.currency), 0) -
+    cardTotal;
 
   // Net worth trend from recorded daily snapshots. Fall back to a single point at
   // today's value so a brand-new household still shows a sensible chart.
@@ -196,6 +239,8 @@ export async function GET() {
       investments: visibleInvestments.reduce((s, i) => s + cv(Number(i.currentValue ?? i.investedAmount), i.currency), 0),
       assets: visibleAssets.reduce((s, a) => s + cv(Number(a.value), a.currency), 0),
       debts: visibleDebts.reduce((s, d) => s + cv(Number(d.outstandingAmount), d.currency), 0),
+      cash: cashTotal,
+      cardsOutstanding: cardTotal,
       thisMonthExpense,
     },
     cashflowProjection,

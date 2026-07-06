@@ -9,6 +9,7 @@ import { apiError, safeRoute, zodMessage, UNAUTHORIZED, FORBIDDEN } from "@/lib/
 
 const patchSchema = z.object({
   cardId: z.string().uuid().nullable().optional(),
+  accountId: z.string().uuid().nullable().optional(),
   isTransfer: z.boolean().optional(),
 });
 
@@ -36,6 +37,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/transactio
       .update(transactions)
       .set({
         ...(parsed.data.cardId !== undefined ? { cardId: parsed.data.cardId } : {}),
+        ...(parsed.data.accountId !== undefined ? { accountId: parsed.data.accountId } : {}),
         ...(parsed.data.isTransfer !== undefined ? { isTransfer: parsed.data.isTransfer } : {}),
       })
       .where(and(eq(transactions.id, id), eq(transactions.householdId, session.householdId)))

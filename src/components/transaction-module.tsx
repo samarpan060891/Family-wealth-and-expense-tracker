@@ -18,6 +18,7 @@ type Tx = {
   currency: string;
   isTransfer: boolean;
   cardId: string | null;
+  accountId: string | null;
   date: string;
   paymentMethod: string;
   note: string | null;
@@ -46,6 +47,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [displayCurrency, setDisplayCurrency] = useState(viewerCurrency);
   const [rates, setRates] = useState<Record<string, number>>({});
   const [cards, setCards] = useState<{ id: string; nickname: string; last4: string | null }[]>([]);
+  const [accounts, setAccounts] = useState<{ id: string; name: string; currency: string }[]>([]);
   const [assignTx, setAssignTx] = useState<Tx | null>(null);
   const [form, setForm] = useState({
     categoryId: "",
@@ -56,6 +58,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     note: "",
     isTransfer: false,
     cardId: "",
+    accountId: "",
     isRecurring: false,
     recurrenceFrequency: "one_time",
   });
@@ -77,6 +80,10 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
 
   useEffect(() => {
     load();
+    fetch("/api/cash-accounts")
+      .then((r) => r.json())
+      .then((d) => setAccounts(d.accounts ?? []))
+      .catch(() => {});
     if (type === "expense") {
       fetch("/api/cards")
         .then((r) => r.json())
@@ -124,6 +131,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       note: "",
       isTransfer: false,
       cardId: "",
+      accountId: "",
       isRecurring: false,
       recurrenceFrequency: "one_time",
     });
@@ -171,7 +179,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, ...form, cardId: form.cardId || null }),
+        body: JSON.stringify({ type, ...form, cardId: form.cardId || null, accountId: form.accountId || null }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -304,6 +312,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
                     {tx.date} · {PAYMENT_METHODS.find((p) => p.value === tx.paymentMethod)?.label}
                     {tx.isRecurring ? ` · Recurring (${tx.recurrenceFrequency})` : ""}
                     {tx.cardId ? ` · ▦ ${cards.find((c) => c.id === tx.cardId)?.nickname ?? "Card"}` : ""}
+                    {tx.accountId ? ` · ▢ ${accounts.find((a) => a.id === tx.accountId)?.name ?? "Account"}` : ""}
                   </div>
                   {tx.note && <div className="text-xs text-muted-soft mt-0.5 truncate">{tx.note}</div>}
                   <div className="mt-1.5">
@@ -448,6 +457,22 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
               ))}
             </select>
           </div>
+          {accounts.length > 0 && (type === "income" || form.paymentMethod !== "credit_card") && (
+            <div>
+              <label>{type === "income" ? "Deposited to account" : "Paid from account"}</label>
+              <select value={form.accountId} onChange={(e) => setForm({ ...form, accountId: e.target.value })}>
+                <option value="">— Not linked —</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.currency})
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-soft mt-1">
+                Updates the account&apos;s balance and your net worth.
+              </p>
+            </div>
+          )}
           {type === "expense" && (
             <div className="border border-border rounded-xl p-3 bg-surface2/40">
               <label className="!mb-0 !normal-case flex items-center gap-2 text-sm text-text">

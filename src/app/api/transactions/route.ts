@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
       currency: transactions.currency,
       isTransfer: transactions.isTransfer,
       cardId: transactions.cardId,
+      accountId: transactions.accountId,
       date: transactions.date,
       paymentMethod: transactions.paymentMethod,
       note: transactions.note,
@@ -78,6 +79,7 @@ const schema = z.object({
   currency: z.string().length(3).optional(),
   isTransfer: z.boolean().default(false),
   cardId: z.string().uuid().optional().nullable(),
+  accountId: z.string().uuid().optional().nullable(),
   isRecurring: z.boolean().default(false),
   recurrenceFrequency: z
     .enum(["one_time", "monthly", "quarterly", "half_yearly", "yearly"])
@@ -115,6 +117,7 @@ export async function POST(req: NextRequest) {
       currency,
       isTransfer: parsed.data.isTransfer,
       cardId: parsed.data.cardId ?? null,
+      accountId: parsed.data.accountId ?? null,
       date: parsed.data.date,
       paymentMethod: parsed.data.paymentMethod,
       note: parsed.data.note,

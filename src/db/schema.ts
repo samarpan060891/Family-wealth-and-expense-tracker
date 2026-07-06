@@ -136,6 +136,8 @@ export const transactions = pgTable("transactions", {
   isTransfer: boolean("is_transfer").notNull().default(false),
   // Optional link to a saved credit card (a purchase on it, or a bill payment for it).
   cardId: uuid("card_id"),
+  // Optional link to a cash/bank account the money moved in or out of.
+  accountId: uuid("account_id"),
   date: date("date").notNull(),
   paymentMethod: paymentMethodEnum("payment_method")
     .notNull()
@@ -412,6 +414,23 @@ export const reminderCompletions = pgTable(
   },
   (t) => [primaryKey({ columns: [t.kind, t.sourceId, t.dueDate] })]
 );
+
+// Cash / bank / wallet accounts. Balance = opening + income in − non-card expenses
+// out (all computed from linked transactions), and it rolls into net worth.
+export const cashAccounts = pgTable("cash_accounts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  createdById: uuid("created_by_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 80 }).notNull(),
+  kind: varchar("kind", { length: 20 }).notNull().default("bank"), // bank | cash | wallet
+  currency: varchar("currency", { length: 3 }).notNull().default("INR"),
+  openingBalance: numeric("opening_balance", { precision: 14, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // Saved credit cards. Each card's outstanding is computed from linked transactions
 // (purchases add, bill-payment transfers subtract), so no balance is stored here.
