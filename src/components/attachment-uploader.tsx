@@ -20,17 +20,23 @@ export type ExtractResponse = {
   error?: string;
 };
 
-/** Sends a picked document to the server to auto-detect field values. Images and PDFs only. */
+/** Sends a picked document to the server to auto-detect field values. Images, PDFs
+ * and spreadsheets (xlsx/xls/csv) are supported; others are skipped. */
 export async function scanDocument(module: Module, file: File): Promise<ExtractResponse> {
   const type = file.type || "application/octet-stream";
-  if (!type.startsWith("image/") && type !== "application/pdf") {
+  const name = file.name.toLowerCase();
+  const isSheet = /spreadsheet|excel|csv|ms-excel/i.test(type) || /\.(xlsx|xls|csv)$/.test(name);
+  const supported = type.startsWith("image/") || type === "application/pdf" || isSheet;
+  if (!supported) {
     return { configured: true, fields: {} };
   }
   const base64 = await fileToBase64(file);
+  // Normalize a missing/odd MIME for spreadsheets so the server routes it correctly.
+  const fileType = isSheet && !/spreadsheet|excel|csv/i.test(type) ? "text/csv" : type;
   const res = await fetch("/api/extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ module, fileType: type, fileData: base64 }),
+    body: JSON.stringify({ module, fileType, fileData: base64 }),
   });
   const data = (await res.json()) as ExtractResponse;
   return data;

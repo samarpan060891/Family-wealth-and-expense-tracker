@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { extractPdfText, hasUsableText } from "@/lib/pdf-text";
+import { spreadsheetToText, isSpreadsheet } from "@/lib/sheet-text";
 
 // Model is configurable so the deployer can trade cost for accuracy.
 // Defaults to Claude Haiku 4.5 (cheapest, well-suited to reading bills/statements);
@@ -103,8 +104,8 @@ export async function extractFromDocument(params: {
 
   const isPdf = fileType === "application/pdf";
   const isImage = fileType.startsWith("image/");
-  if (!isPdf && !isImage) {
-    // Excel/CSV aren't vision inputs; skip extraction gracefully.
+  const isSheet = isSpreadsheet(fileType);
+  if (!isPdf && !isImage && !isSheet) {
     return { fields: {}, configured: true };
   }
 
@@ -112,11 +113,15 @@ export async function extractFromDocument(params: {
   const fieldList = fields.map((f) => `- ${f.key}: ${f.hint}`).join("\n");
   const keys = fields.map((f) => f.key).join(", ");
 
-  // Token-saving layer: for text-based PDFs, extract the text locally and send
-  // Claude plain text instead of the whole PDF (much cheaper). Scanned PDFs (no
-  // text layer) and images fall back to sending the document/image for vision.
+  // Token-saving layer: read PDFs and spreadsheets to plain text locally and send
+  // Claude just the text (much cheaper than a PDF document block or images).
+  // Scanned PDFs (no text layer) and photos fall back to vision.
   let contentBlock: Anthropic.Messages.ContentBlockParam;
-  if (isPdf) {
+  if (isSheet) {
+    const sheetText = spreadsheetToText(base64);
+    if (!hasUsableText(sheetText)) return { fields: {}, configured: true };
+    contentBlock = { type: "text", text: `Spreadsheet contents:\n\n${sheetText}` };
+  } else if (isPdf) {
     const pdfText = await extractPdfText(base64);
     contentBlock = hasUsableText(pdfText)
       ? { type: "text", text: `Extracted document text:\n\n${pdfText.slice(0, 20000)}` }
