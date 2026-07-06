@@ -40,7 +40,13 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Extraction failed";
+    // Surface the real reason in the server logs so failures are diagnosable,
+    // and pass a readable message back to the client.
+    console.error("[extract] failed:", err);
+    const raw = err instanceof Error ? err.message : String(err);
+    const message = /timeout|ETIMEDOUT|ECONNRESET|fetch failed/i.test(raw)
+      ? "The document reader timed out"
+      : raw || "Couldn't read this document";
     return NextResponse.json({ configured: true, fields: {}, error: message }, { status: 502 });
   }
 }

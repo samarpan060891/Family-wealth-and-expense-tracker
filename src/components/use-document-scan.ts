@@ -31,13 +31,18 @@ export function useDocumentScan(module: Module, apply: (fields: Record<string, s
         setScanNote("Attached. (Auto-detect is off — set ANTHROPIC_API_KEY to read documents.)");
         return;
       }
+      // The request itself failed (too large, API error, etc.) — show why.
+      if (res.failed) {
+        setScanNote(`${res.error ?? "Couldn't read this file"} — you can still fill it in manually.`);
+        return;
+      }
       const fields = res.fields ?? {};
       apply(fields);
       const got = Object.values(fields).filter(Boolean).length;
       setScanNote(
         got
           ? "Scanned the document and pre-filled what we could — please review."
-          : "Couldn't read details from this file — please fill them in."
+          : "Couldn't find matching details in this file — please fill them in."
       );
     } catch {
       setScanNote("Couldn't scan this file — you can still fill it in manually.");

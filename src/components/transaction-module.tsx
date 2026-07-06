@@ -150,6 +150,10 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
         setScanNote("Attached. (Auto-detect is off — set ANTHROPIC_API_KEY to read documents.)");
         return;
       }
+      if (res.failed) {
+        setScanNote(`${res.error ?? "Couldn't read this file"} — you can still fill it in manually.`);
+        return;
+      }
       const f = res.fields ?? {};
       const matchedCat = f.categoryName
         ? categories.find((c) => c.name.toLowerCase() === String(f.categoryName).toLowerCase())
@@ -163,7 +167,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
         note: f.note || prev.note,
       }));
       const got = Object.values(f).filter(Boolean).length;
-      setScanNote(got ? "Scanned the document and pre-filled what we could — please review." : "Couldn't read details from this file — please fill them in.");
+      setScanNote(got ? "Scanned the document and pre-filled what we could — please review." : "Couldn't find matching details in this file — please fill them in.");
     } catch {
       setScanNote("Couldn't scan this file — you can still fill it in manually.");
     } finally {

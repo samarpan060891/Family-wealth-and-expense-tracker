@@ -18,6 +18,8 @@ export type ExtractResponse = {
   fields: Record<string, string | null>;
   message?: string;
   error?: string;
+  /** Set by scanDocument when the request itself failed (non-2xx). */
+  failed?: boolean;
 };
 
 /** Sends a picked document to the server to auto-detect field values. Images, PDFs
@@ -38,8 +40,16 @@ export async function scanDocument(module: Module, file: File): Promise<ExtractR
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ module, fileType, fileData: base64 }),
   });
-  const data = (await res.json()) as ExtractResponse;
-  return data;
+  const data = (await res.json().catch(() => ({}))) as Partial<ExtractResponse>;
+  // Preserve whether the request itself failed so callers can show the real
+  // reason (file too large, API error, etc.) instead of a generic message.
+  return {
+    configured: data.configured ?? true,
+    fields: data.fields ?? {},
+    message: data.message,
+    error: data.error,
+    failed: !res.ok,
+  };
 }
 
 export async function uploadAttachment(module: Module, recordId: string, file: File) {
