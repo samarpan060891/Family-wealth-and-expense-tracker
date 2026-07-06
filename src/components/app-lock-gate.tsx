@@ -80,7 +80,14 @@ function LockScreen({ hasBiometric, onUnlocked }: { hasBiometric: boolean; onUnl
   const [lockSeconds, setLockSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
   const [bioState, setBioState] = useState<"idle" | "trying" | "unavailable">("idle");
+  const [shake, setShake] = useState(false);
   const triedAuto = useRef(false);
+
+  const flagError = useCallback((msg: string) => {
+    setError(msg);
+    setShake(true);
+    setTimeout(() => setShake(false), 500);
+  }, []);
 
   const tryBiometric = useCallback(async () => {
     setBioState("trying");
@@ -133,30 +140,46 @@ function LockScreen({ hasBiometric, onUnlocked }: { hasBiometric: boolean; onUnl
         if (data.locked) {
           setLockSeconds(data.retryAfterSeconds ?? 60);
           setRemaining(null);
-          setError("Too many attempts.");
+          flagError("Too many attempts.");
         } else {
           setRemaining(typeof data.remainingAttempts === "number" ? data.remainingAttempts : null);
-          setError(data.error ?? "Incorrect PIN.");
+          flagError(data.error ?? "Incorrect PIN.");
         }
       } finally {
         setBusy(false);
       }
     },
-    [onUnlocked]
+    [onUnlocked, flagError]
   );
 
-  function press(digit: string) {
-    if (busy || lockSeconds > 0 || pin.length >= 4) return;
-    const next = pin + digit;
-    setPin(next);
-    setError("");
-    if (next.length === 4) void submitPin(next);
-  }
+  const press = useCallback(
+    (digit: string) => {
+      if (busy || lockSeconds > 0) return;
+      setPin((p) => {
+        if (p.length >= 4) return p;
+        const next = p + digit;
+        if (next.length === 4) void submitPin(next);
+        return next;
+      });
+      setError("");
+    },
+    [busy, lockSeconds, submitPin]
+  );
 
-  function backspace() {
+  const backspace = useCallback(() => {
     setPin((p) => p.slice(0, -1));
     setError("");
-  }
+  }, []);
+
+  // Hardware keyboard support (desktop): digits type, Backspace deletes.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key >= "0" && e.key <= "9") press(e.key);
+      else if (e.key === "Backspace") backspace();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [press, backspace]);
 
   async function usePassword() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
@@ -167,91 +190,130 @@ function LockScreen({ hasBiometric, onUnlocked }: { hasBiometric: boolean; onUnl
 
   const disabled = busy || lockSeconds > 0;
 
-  return (
-    <div className="fixed inset-0 z-[200] bg-bg flex flex-col items-center justify-center px-6 py-10 animate-fade-in">
-      <div className="w-full max-w-xs flex flex-col items-center">
-        <div className="w-14 h-14 rounded-2xl bg-accent-glow flex items-center justify-center text-2xl mb-4">🔒</div>
-        <div className="font-display text-xl font-semibold text-accent italic">FamilyWealth</div>
-        <div className="text-sm text-muted mt-1 mb-7">App locked</div>
+  const statusText =
+    lockSeconds > 0
+      ? `Try again in ${lockSeconds}s`
+      : error
+        ? `${error}${remaining !== null && remaining > 0 ? ` · ${remaining} left` : ""}`
+        : "Enter Passcode";
 
-        {/* Biometric */}
-        {bioState !== "unavailable" && (
-          <button
-            onClick={tryBiometric}
-            disabled={disabled || bioState === "trying"}
-            className="w-full mb-5 flex items-center justify-center gap-2 bg-surface2 border border-border rounded-xl py-3 text-sm font-semibold hover:border-accent/50 transition-colors disabled:opacity-60"
-          >
-            <span className="text-lg">👆</span>
-            {bioState === "trying" ? "Waiting for biometric…" : "Unlock with Face ID / Fingerprint"}
-          </button>
-        )}
+  return (
+    <div className="fixed inset-0 z-[200] flex flex-col items-center justify-between bg-bg/80 backdrop-blur-2xl px-6 pt-16 pb-10 animate-fade-in">
+      {/* Header: lock glyph, title, status */}
+      <div className="flex flex-col items-center text-center">
+        <div className="w-11 h-11 rounded-full bg-surface2/80 border border-border flex items-center justify-center text-lg mb-5 shadow-sm">
+          🔒
+        </div>
+        <div className="font-display text-lg font-semibold text-text">FamilyWealth</div>
 
         {/* PIN dots */}
-        <div className="flex gap-3 mb-2">
+        <div className={`flex gap-5 mt-6 ${shake ? "animate-shake" : ""}`}>
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className={`w-3.5 h-3.5 rounded-full border transition-colors ${
-                pin.length > i ? "bg-accent border-accent" : "border-muted-soft"
+              className={`w-[14px] h-[14px] rounded-full border-[1.5px] transition-all duration-150 ${
+                pin.length > i
+                  ? "bg-text border-text scale-100"
+                  : "bg-transparent border-muted-soft scale-95"
               }`}
             />
           ))}
         </div>
 
-        <div className="h-5 mb-2 text-center">
-          {lockSeconds > 0 ? (
-            <span className="text-xs text-red">Locked — try again in {lockSeconds}s</span>
-          ) : error ? (
-            <span className="text-xs text-red">
-              {error}
-              {remaining !== null && remaining > 0 ? ` ${remaining} attempt${remaining === 1 ? "" : "s"} left.` : ""}
-            </span>
-          ) : (
-            <span className="text-xs text-muted-soft">Enter your 4-digit PIN</span>
-          )}
+        <div className="h-4 mt-4 text-center">
+          <span className={`text-[13px] ${error || lockSeconds > 0 ? "text-red" : "text-muted"}`}>{statusText}</span>
         </div>
+      </div>
 
-        {/* Keypad */}
-        <div className="grid grid-cols-3 gap-3 w-full">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
-            <KeypadButton key={d} onClick={() => press(d)} disabled={disabled}>
-              {d}
+      {/* Keypad + actions pinned toward the bottom, iOS-style */}
+      <div className="w-full max-w-[280px] flex flex-col items-center">
+        <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full place-items-center">
+          {KEYPAD.map((k) => (
+            <KeypadButton key={k.d} onClick={() => press(k.d)} disabled={disabled} sub={k.sub}>
+              {k.d}
             </KeypadButton>
           ))}
-          <div />
+        </div>
+
+        {/* Bottom row: biometric (left) · 0 · backspace (right) */}
+        <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full place-items-center mt-4">
+          <div className="w-[74px] h-[74px] flex items-center justify-center">
+            {bioState !== "unavailable" && (
+              <button
+                onClick={tryBiometric}
+                disabled={disabled || bioState === "trying"}
+                aria-label="Unlock with Face ID or fingerprint"
+                className="w-[74px] h-[74px] flex items-center justify-center text-2xl text-accent active:opacity-60 transition-opacity disabled:opacity-40"
+              >
+                {bioState === "trying" ? (
+                  <span className="w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                ) : (
+                  "☺"
+                )}
+              </button>
+            )}
+          </div>
           <KeypadButton onClick={() => press("0")} disabled={disabled}>
             0
           </KeypadButton>
-          <KeypadButton onClick={backspace} disabled={disabled || pin.length === 0}>
+          <button
+            onClick={backspace}
+            disabled={disabled || pin.length === 0}
+            aria-label="Delete"
+            className="w-[74px] h-[74px] flex items-center justify-center text-xl text-text active:opacity-50 transition-opacity disabled:opacity-30"
+          >
             ⌫
-          </KeypadButton>
+          </button>
         </div>
 
-        <button onClick={usePassword} className="mt-7 text-xs text-muted hover:text-accent transition-colors">
-          Forgot PIN? Log in with password
+        <button
+          onClick={usePassword}
+          className="mt-8 text-[13px] text-accent font-medium hover:text-accent-soft transition-colors"
+        >
+          Use Password
         </button>
       </div>
     </div>
   );
 }
 
+// iOS keypad layout — digit plus the classic letter grouping beneath it.
+const KEYPAD = [
+  { d: "1", sub: "" },
+  { d: "2", sub: "A B C" },
+  { d: "3", sub: "D E F" },
+  { d: "4", sub: "G H I" },
+  { d: "5", sub: "J K L" },
+  { d: "6", sub: "M N O" },
+  { d: "7", sub: "P Q R S" },
+  { d: "8", sub: "T U V" },
+  { d: "9", sub: "W X Y Z" },
+] as const;
+
 function KeypadButton({
   children,
   onClick,
   disabled,
+  sub,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  sub?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="aspect-square rounded-2xl bg-surface2 border border-border text-xl font-semibold hover:border-accent/50 active:bg-surface3 transition-colors disabled:opacity-40"
+      className="group w-[74px] h-[74px] rounded-full bg-surface2/70 border border-border/60 flex flex-col items-center justify-center transition-colors active:bg-accent active:border-accent disabled:opacity-40"
     >
-      {children}
+      <span className="text-[30px] leading-none font-light text-text group-active:text-white">{children}</span>
+      {sub ? (
+        <span className="text-[9px] font-semibold tracking-[0.15em] text-muted-soft mt-0.5 group-active:text-white/80">
+          {sub}
+        </span>
+      ) : null}
     </button>
   );
 }
