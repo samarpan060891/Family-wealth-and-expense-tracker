@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { attachments } from "@/db/schema";
 import { getSession } from "@/lib/auth";
+import { MAX_UPLOAD_BASE64, MAX_UPLOAD_LABEL } from "@/lib/limits";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -50,9 +51,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
 
-  // Roughly cap stored file size at ~8MB (base64 inflates by ~1.37x)
-  if (parsed.data.fileData.length > 11_000_000) {
-    return NextResponse.json({ error: "File is too large (max ~8MB)" }, { status: 413 });
+  if (parsed.data.fileData.length > MAX_UPLOAD_BASE64) {
+    return NextResponse.json({ error: `File is too large (max ~${MAX_UPLOAD_LABEL})` }, { status: 413 });
   }
 
   const db = await getDb();

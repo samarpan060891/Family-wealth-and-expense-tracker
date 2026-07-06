@@ -6,7 +6,7 @@ import { useCurrencyCtx } from "@/components/currency-context";
 import { CurrencySelect } from "@/components/currency-select";
 import { convertWith } from "@/lib/fx-convert";
 import { PAYMENT_METHODS, FREQUENCIES } from "@/lib/categories";
-import { uploadAttachment, scanDocument } from "@/components/attachment-uploader";
+import { uploadAttachment, scanDocument, fileToBase64 } from "@/components/attachment-uploader";
 import { DocumentScanField } from "@/components/document-scan-field";
 import { RowAttachments } from "@/components/row-attachments";
 import { cleanAmount } from "@/lib/extract-fields";
@@ -41,6 +41,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
   const [file, setFile] = useState<File | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState("");
+  const [saveToLibrary, setSaveToLibrary] = useState(false);
   const [addingCat, setAddingCat] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [savingCat, setSavingCat] = useState(false);
@@ -137,6 +138,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
     });
     setFile(null);
     setScanNote("");
+    setSaveToLibrary(false);
   }
 
   async function onFilePicked(picked: File | null) {
@@ -167,7 +169,7 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
         note: f.note || prev.note,
       }));
       const got = Object.values(f).filter(Boolean).length;
-      setScanNote(got ? "Scanned the document and pre-filled what we could — please review." : "Couldn't find matching details in this file — please fill them in.");
+      setScanNote(res.note ? res.note : got ? "Scanned the document and pre-filled what we could — please review." : "Couldn't find matching details in this file — please fill them in.");
     } catch {
       setScanNote("Couldn't scan this file — you can still fill it in manually.");
     } finally {
@@ -192,6 +194,24 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
       }
       if (file) {
         await uploadAttachment(type, data.transaction.id, file);
+        if (saveToLibrary) {
+          try {
+            const base64 = await fileToBase64(file);
+            await fetch("/api/documents", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: form.note?.trim() || file.name.replace(/\.[^.]+$/, ""),
+                category: "other",
+                fileName: file.name,
+                fileType: file.type || "application/octet-stream",
+                fileData: base64,
+              }),
+            });
+          } catch {
+            // Non-fatal: the transaction + attachment are already saved.
+          }
+        }
       }
       setOpen(false);
       resetForm();
@@ -550,6 +570,8 @@ export function TransactionModule({ type }: { type: "expense" | "income" }) {
             scanNote={scanNote}
             file={file}
             onFilePicked={(f) => onFilePicked(f)}
+            saveToLibrary={saveToLibrary}
+            onSaveToLibraryChange={setSaveToLibrary}
           />
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>

@@ -52,7 +52,7 @@ export default function DebtsPage() {
   const [amortizationDebtId, setAmortizationDebtId] = useState<string | null>(null);
   const matchType = (t: string | null | undefined) =>
     (t && DEBT_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
-  const { file, scanning, scanNote, onFilePicked, reset } = useDocumentScan("debt", (f) =>
+  const { file, scanning, scanNote, onFilePicked, reset, saveToLibrary, setSaveToLibrary, saveToDocuments } = useDocumentScan("debt", (f) =>
     setForm((prev) => ({
       ...prev,
       name: f.name || prev.name,
@@ -93,6 +93,7 @@ export default function DebtsPage() {
       const data = await res.json();
       if (!res.ok) return setError(data.error ?? "Failed to save");
       if (file) await uploadAttachment("debt", data.debt.id, file);
+      await saveToDocuments(form.name || "Loan document", "bank");
       setOpen(false);
       resetForm();
       load();
@@ -250,6 +251,8 @@ export default function DebtsPage() {
             scanNote={scanNote}
             file={file}
             onFilePicked={onFilePicked}
+            saveToLibrary={saveToLibrary}
+            onSaveToLibraryChange={setSaveToLibrary}
           />
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>

@@ -45,7 +45,7 @@ export default function AssetsPage() {
   const [form, setForm] = useState({ ...EMPTY_FORM, currency: defaultCurrency });
   const matchType = (t: string | null | undefined) =>
     (t && ASSET_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
-  const { file, scanning, scanNote, onFilePicked, reset } = useDocumentScan("asset", (f) =>
+  const { file, scanning, scanNote, onFilePicked, reset, saveToLibrary, setSaveToLibrary, saveToDocuments } = useDocumentScan("asset", (f) =>
     setForm((prev) => ({
       ...prev,
       name: f.name || prev.name,
@@ -83,6 +83,7 @@ export default function AssetsPage() {
       const data = await res.json();
       if (!res.ok) return setError(data.error ?? "Failed to save");
       if (file) await uploadAttachment("asset", data.asset.id, file);
+      await saveToDocuments(form.name || "Asset document", "property");
       setOpen(false);
       resetForm();
       load();
@@ -202,6 +203,8 @@ export default function AssetsPage() {
             scanNote={scanNote}
             file={file}
             onFilePicked={onFilePicked}
+            saveToLibrary={saveToLibrary}
+            onSaveToLibraryChange={setSaveToLibrary}
           />
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>

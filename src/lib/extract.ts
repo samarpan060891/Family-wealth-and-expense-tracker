@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { extractPdfText, hasUsableText } from "@/lib/pdf-text";
 import { spreadsheetToText, isSpreadsheet } from "@/lib/sheet-text";
+import { MAX_VISION_BASE64 } from "@/lib/limits";
 
 // Model is configurable so the deployer can trade cost for accuracy.
 // Defaults to Claude Haiku 4.5 (cheapest, well-suited to reading bills/statements);
@@ -74,6 +75,8 @@ const MODULE_FIELDS: Record<ExtractModule, { key: string; hint: string }[]> = {
 export type ExtractResult = {
   fields: Record<string, string | null>;
   configured: boolean;
+  /** Set when the file was stored but couldn't be auto-read (e.g. a large scan). */
+  note?: string;
 };
 
 /** Pulls the first JSON object out of the model's reply, tolerating ```json fences or stray prose. */
@@ -123,12 +126,21 @@ export async function extractFromDocument(params: {
     contentBlock = { type: "text", text: `Spreadsheet contents:\n\n${sheetText}` };
   } else if (isPdf) {
     const pdfText = await extractPdfText(base64);
-    contentBlock = hasUsableText(pdfText)
-      ? { type: "text", text: `Extracted document text:\n\n${pdfText.slice(0, 20000)}` }
-      : {
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: base64 },
-        };
+    if (hasUsableText(pdfText)) {
+      // Text-based PDF: send just the text — works for any file size.
+      contentBlock = { type: "text", text: `Extracted document text:\n\n${pdfText.slice(0, 20000)}` };
+    } else if (base64.length > MAX_VISION_BASE64) {
+      // Scanned/image PDF too large to send to the vision reader. It's still
+      // stored — the user just fills the form in manually.
+      return { fields: {}, configured: true, note: "This scanned document is large — it's saved, but please fill the details in manually." };
+    } else {
+      contentBlock = {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: base64 },
+      };
+    }
+  } else if (base64.length > MAX_VISION_BASE64) {
+    return { fields: {}, configured: true, note: "This image is large — it's saved, but please fill the details in manually." };
   } else {
     contentBlock = {
       type: "image",

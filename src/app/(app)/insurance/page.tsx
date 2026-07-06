@@ -70,7 +70,7 @@ export default function InsurancePage() {
   const [form, setForm] = useState({ ...EMPTY_FORM, currency: defaultCurrency });
   const matchType = (t: string | null | undefined) =>
     (t && INSURANCE_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
-  const { file, scanning, scanNote, onFilePicked, reset } = useDocumentScan("insurance", (f) =>
+  const { file, scanning, scanNote, onFilePicked, reset, saveToLibrary, setSaveToLibrary, saveToDocuments } = useDocumentScan("insurance", (f) =>
     setForm((prev) => ({
       ...prev,
       name: f.name || prev.name,
@@ -121,6 +121,7 @@ export default function InsurancePage() {
       const data = await res.json();
       if (!res.ok) return setError(data.error ?? "Failed to save");
       if (file) await uploadAttachment("insurance", data.insurance.id, file);
+      await saveToDocuments(form.name || "Insurance policy", "insurance");
       setOpen(false);
       resetForm();
       load();
@@ -269,6 +270,8 @@ export default function InsurancePage() {
             scanNote={scanNote}
             file={file}
             onFilePicked={onFilePicked}
+            saveToLibrary={saveToLibrary}
+            onSaveToLibraryChange={setSaveToLibrary}
           />
           <div>
             <label>Policy Name</label>

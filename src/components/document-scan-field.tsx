@@ -9,12 +9,17 @@ export function DocumentScanField({
   scanNote,
   file,
   onFilePicked,
+  saveToLibrary,
+  onSaveToLibraryChange,
 }: {
   label: string;
   scanning: boolean;
   scanNote: string;
   file: File | null;
   onFilePicked: (file: File | null) => void;
+  // When provided, shows a "also save to Documents" checkbox once a file is picked.
+  saveToLibrary?: boolean;
+  onSaveToLibraryChange?: (v: boolean) => void;
 }) {
   return (
     <div>
@@ -32,6 +37,17 @@ export function DocumentScanField({
         />
       </label>
       {scanNote && <div className="text-xs text-accent mt-1.5">{scanNote}</div>}
+      {file && onSaveToLibraryChange && (
+        <label className="!mb-0 !normal-case !tracking-normal !text-xs !font-normal flex items-center gap-2 mt-2 cursor-pointer text-muted">
+          <input
+            type="checkbox"
+            checked={!!saveToLibrary}
+            onChange={(e) => onSaveToLibraryChange(e.target.checked)}
+            className="!w-auto accent-[var(--accent)]"
+          />
+          Also save a copy to my Documents library
+        </label>
+      )}
     </div>
   );
 }

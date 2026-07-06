@@ -18,6 +18,8 @@ export type ExtractResponse = {
   fields: Record<string, string | null>;
   message?: string;
   error?: string;
+  /** Set when the file was stored but couldn't be auto-read (e.g. a large scan). */
+  note?: string;
   /** Set by scanDocument when the request itself failed (non-2xx). */
   failed?: boolean;
 };
@@ -48,6 +50,7 @@ export async function scanDocument(module: Module, file: File): Promise<ExtractR
     fields: data.fields ?? {},
     message: data.message,
     error: data.error,
+    note: data.note,
     failed: !res.ok,
   };
 }

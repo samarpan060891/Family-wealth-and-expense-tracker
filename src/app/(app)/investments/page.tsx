@@ -81,7 +81,7 @@ export default function InvestmentsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const matchType = (t: string | null | undefined) =>
     (t && INVESTMENT_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
-  const { file, scanning, scanNote, onFilePicked, reset } = useDocumentScan("investment", (f) =>
+  const { file, scanning, scanNote, onFilePicked, reset, saveToLibrary, setSaveToLibrary, saveToDocuments } = useDocumentScan("investment", (f) =>
     setForm((prev) => ({
       ...prev,
       name: f.name || prev.name,
@@ -162,6 +162,7 @@ export default function InvestmentsPage() {
       const data = await res.json();
       if (!res.ok) return setError(data.error ?? "Failed to save");
       if (file) await uploadAttachment("investment", data.investment.id, file);
+      await saveToDocuments(form.name || "Investment document", "investment");
       setOpen(false);
       resetForm();
       load();
@@ -520,6 +521,8 @@ export default function InvestmentsPage() {
             scanNote={scanNote}
             file={file}
             onFilePicked={onFilePicked}
+            saveToLibrary={saveToLibrary}
+            onSaveToLibraryChange={setSaveToLibrary}
           />
           {error && <div className="text-red text-sm">{error}</div>}
           <Button type="submit" className="w-full" disabled={saving}>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { extractFromDocument, isExtractionConfigured } from "@/lib/extract";
+import { MAX_UPLOAD_BASE64, MAX_UPLOAD_LABEL } from "@/lib/limits";
 
 export const maxDuration = 60;
 
@@ -27,9 +28,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
 
-  // Cap at ~8MB of base64 to protect the request/token budget.
-  if (parsed.data.fileData.length > 11_000_000) {
-    return NextResponse.json({ error: "File is too large to scan (max ~8MB)" }, { status: 413 });
+  if (parsed.data.fileData.length > MAX_UPLOAD_BASE64) {
+    return NextResponse.json({ error: `File is too large to scan (max ~${MAX_UPLOAD_LABEL})` }, { status: 413 });
   }
 
   try {
