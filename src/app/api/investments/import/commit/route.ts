@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
         skippedNoPermission++;
         continue;
       }
+      // Auto-update only when we have both a symbol and a quantity to price against.
+      const autoUpdate = Boolean(r.symbol) && r.quantity != null && r.quantity > 0;
       values.push({
         householdId: session.householdId,
         createdById: session.userId,
@@ -48,6 +50,9 @@ export async function POST(req: NextRequest) {
         investedAmount: (r.investedAmount ?? 0).toString(),
         currentValue: r.currentValue != null ? r.currentValue.toString() : null,
         purchaseDate: r.purchaseDate && /^\d{4}-\d{2}-\d{2}$/.test(r.purchaseDate) ? r.purchaseDate : today,
+        autoUpdate,
+        symbol: r.symbol || null,
+        quantity: r.quantity != null ? r.quantity.toString() : null,
       });
       created++;
     }
