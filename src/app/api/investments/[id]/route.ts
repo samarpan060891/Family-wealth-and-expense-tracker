@@ -20,6 +20,10 @@ const patchSchema = z.object({
   symbol: z.string().trim().max(40).nullable().optional(),
   quantity: z.coerce.number().nonnegative().nullable().optional(),
   currency: z.string().length(3).optional(),
+  location: z.string().trim().max(200).nullable().optional(),
+  sizeValue: z.coerce.number().positive().nullable().optional(),
+  sizeUnit: z.string().trim().max(20).nullable().optional(),
+  valuationNote: z.string().max(2000).nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/investments/[id]">) {
@@ -59,6 +63,10 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/investment
         ...(d.symbol !== undefined ? { symbol: d.symbol || null } : {}),
         ...(d.quantity !== undefined ? { quantity: d.quantity?.toString() ?? null } : {}),
         ...(d.currency !== undefined ? { currency: d.currency } : {}),
+        ...(d.location !== undefined ? { location: d.location || null } : {}),
+        ...(d.sizeValue !== undefined ? { sizeValue: d.sizeValue != null ? d.sizeValue.toString() : null } : {}),
+        ...(d.sizeUnit !== undefined ? { sizeUnit: d.sizeUnit || null } : {}),
+        ...(d.valuationNote !== undefined ? { valuationNote: d.valuationNote || null } : {}),
       })
       .where(and(eq(investments.id, id), eq(investments.householdId, session.householdId)))
       .returning();

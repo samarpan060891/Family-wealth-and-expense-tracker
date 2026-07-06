@@ -174,6 +174,11 @@ export const investments = pgTable("investments", {
   quantity: numeric("quantity", { precision: 18, scale: 6 }),
   lastPrice: numeric("last_price", { precision: 18, scale: 6 }),
   lastPricedAt: timestamp("last_priced_at"),
+  // For real estate: location + size drive an AI web-search valuation estimate.
+  location: varchar("location", { length: 200 }),
+  sizeValue: numeric("size_value", { precision: 12, scale: 2 }),
+  sizeUnit: varchar("size_unit", { length: 20 }), // sqft, sqm, sqyd, acre, etc.
+  valuationNote: text("valuation_note"), // rationale/sources from the last estimate
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

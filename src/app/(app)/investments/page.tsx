@@ -28,7 +28,13 @@ type Investment = {
   quantity: string | null;
   lastPricedAt: string | null;
   currency: string;
+  location: string | null;
+  sizeValue: string | null;
+  sizeUnit: string | null;
+  valuationNote: string | null;
 };
+
+const SIZE_UNITS = ["sqft", "sqm", "sqyd", "acre", "cent", "bigha", "marla"];
 
 const EMPTY_FORM = {
   name: "",
@@ -43,6 +49,10 @@ const EMPTY_FORM = {
   symbol: "",
   quantity: "",
   currency: "INR",
+  location: "",
+  sizeValue: "",
+  sizeUnit: "sqft",
+  valuationNote: "",
 };
 
 // Investment types whose value tracks a live market price.
@@ -59,6 +69,15 @@ export default function InvestmentsPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [estimating, setEstimating] = useState(false);
+  const [estimate, setEstimate] = useState<{
+    estimatedValue: number | null;
+    currency: string;
+    confidence: string | null;
+    summary: string;
+    sources: { title: string; url: string }[];
+    configured: boolean;
+  } | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const matchType = (t: string | null | undefined) =>
     (t && INVESTMENT_TYPES.find((x) => x.toLowerCase() === t.toLowerCase())) || undefined;
@@ -93,12 +112,14 @@ export default function InvestmentsPage() {
   function openAdd() {
     resetForm();
     setError("");
+    setEstimate(null);
     setOpen(true);
   }
 
   function openEdit(i: Investment) {
     setEditId(i.id);
     setError("");
+    setEstimate(null);
     setForm({
       name: i.name,
       type: i.type,
@@ -112,6 +133,10 @@ export default function InvestmentsPage() {
       symbol: i.symbol ?? "",
       quantity: i.quantity ?? "",
       currency: i.currency ?? defaultCurrency,
+      location: i.location ?? "",
+      sizeValue: i.sizeValue ?? "",
+      sizeUnit: i.sizeUnit ?? "sqft",
+      valuationNote: i.valuationNote ?? "",
     });
     setOpen(true);
   }
@@ -121,10 +146,18 @@ export default function InvestmentsPage() {
     setError("");
     setSaving(true);
     try {
+      // Drop empty optional fields so numeric coercion (e.g. sizeValue) doesn't reject "".
+      const body = {
+        ...form,
+        sizeValue: form.sizeValue || undefined,
+        location: form.location || undefined,
+        sizeUnit: form.location ? form.sizeUnit : undefined,
+        valuationNote: form.valuationNote || undefined,
+      };
       const res = await fetch(editId ? `/api/investments/${editId}` : "/api/investments", {
         method: editId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) return setError(data.error ?? "Failed to save");
@@ -165,6 +198,45 @@ export default function InvestmentsPage() {
   }
 
   const hasAuto = items.some((i) => i.autoUpdate);
+
+  async function runEstimate() {
+    if (!form.location.trim()) return toastError("Enter the property area / location first.");
+    setEstimating(true);
+    setEstimate(null);
+    try {
+      const res = await fetch("/api/valuation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: form.location,
+          sizeValue: form.sizeValue || undefined,
+          sizeUnit: form.sizeUnit || undefined,
+          purchasePrice: form.investedAmount || undefined,
+          purchaseDate: form.purchaseDate || undefined,
+          currency: form.currency,
+          propertyName: form.name || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toastError(data.error ?? "Couldn't estimate the value.");
+        return;
+      }
+      setEstimate(data);
+      if (data.configured === false) toastError("AI valuation needs ANTHROPIC_API_KEY set on the server.");
+      else if (!data.estimatedValue) toastError("Couldn't find enough comparable data — try a more specific area.");
+    } finally {
+      setEstimating(false);
+    }
+  }
+
+  function useEstimate() {
+    if (!estimate?.estimatedValue) return;
+    const src = estimate.sources.map((s) => s.url).join(" · ");
+    const note = `AI estimate ${new Date().toISOString().slice(0, 10)} (${estimate.confidence ?? "?"} confidence): ${estimate.summary}${src ? ` Sources: ${src}` : ""}`;
+    setForm((prev) => ({ ...prev, currentValue: String(estimate.estimatedValue), valuationNote: note }));
+    success("Estimated value applied — review and save.");
+  }
 
   // Totals convert each holding from its own currency to the viewer's display currency.
   const totalInvested = items.reduce((s, i) => s + convertWith(Number(i.investedAmount), i.currency, rates), 0);
@@ -335,6 +407,82 @@ export default function InvestmentsPage() {
               onChange={(e) => setForm({ ...form, currentValue: e.target.value })}
             />
           </div>
+
+          {form.type === "Real Estate" && (
+            <div className="border border-border rounded-xl p-3 bg-surface2/40 flex flex-col gap-2.5">
+              <div className="text-sm font-semibold">🏠 Property valuation</div>
+              <div>
+                <label>Area / location</label>
+                <input
+                  value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  placeholder="e.g. Dubai Marina, Dubai / Whitefield, Bengaluru"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label>Size</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.sizeValue}
+                    onChange={(e) => setForm({ ...form, sizeValue: e.target.value })}
+                    placeholder="e.g. 1200"
+                  />
+                </div>
+                <div>
+                  <label>Unit</label>
+                  <select value={form.sizeUnit} onChange={(e) => setForm({ ...form, sizeUnit: e.target.value })}>
+                    {SIZE_UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <Button type="button" variant="outline" onClick={runEstimate} disabled={estimating} className="w-fit">
+                {estimating ? "Searching recent listings…" : "🔍 Estimate current value"}
+              </Button>
+              {estimate && estimate.estimatedValue != null && (
+                <div className="bg-surface2 border border-border-soft rounded-lg p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs text-muted">Estimated value</span>
+                    <span className="text-[10px] font-mono uppercase text-muted-soft">
+                      {estimate.confidence ?? "?"} confidence
+                    </span>
+                  </div>
+                  <div className="text-xl font-bold font-mono text-green">
+                    {fmtCurrency(estimate.estimatedValue, estimate.currency)}
+                  </div>
+                  <p className="text-xs text-muted mt-1 leading-relaxed">{estimate.summary}</p>
+                  {estimate.sources.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {estimate.sources.map((s, i) => (
+                        <a
+                          key={i}
+                          href={s.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-accent underline truncate max-w-[10rem]"
+                        >
+                          {s.title}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  <Button type="button" onClick={useEstimate} className="mt-2" size="sm">
+                    Use as current value
+                  </Button>
+                </div>
+              )}
+              <p className="text-[11px] text-muted-soft leading-relaxed">
+                An AI estimate from recent comparable listings — a guide, not a formal appraisal. Always review before
+                relying on it.
+              </p>
+            </div>
+          )}
+
           <div>
             <label>Purchase Date</label>
             <input

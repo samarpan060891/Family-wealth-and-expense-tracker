@@ -45,6 +45,10 @@ const schema = z.object({
   symbol: z.string().trim().max(40).optional(),
   quantity: z.coerce.number().nonnegative().optional(),
   currency: z.string().length(3).optional(),
+  location: z.string().trim().max(200).optional(),
+  sizeValue: z.coerce.number().positive().optional(),
+  sizeUnit: z.string().trim().max(20).optional(),
+  valuationNote: z.string().max(2000).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -84,6 +88,10 @@ export async function POST(req: NextRequest) {
       autoUpdate,
       symbol: parsed.data.symbol || null,
       quantity: parsed.data.quantity?.toString() ?? null,
+      location: parsed.data.location || null,
+      sizeValue: parsed.data.sizeValue?.toString() ?? null,
+      sizeUnit: parsed.data.sizeUnit || null,
+      valuationNote: parsed.data.valuationNote || null,
     })
     .returning();
 
